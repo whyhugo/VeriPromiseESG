@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environments
+.env
+.venv/
+env/
+venv/
+ENV/
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# Machine Learning / Log files
+*.log
+checkpoints/
+models/
+
+# Data Files (Uncomment if you want to ignore all csv/json files in data/)
+# data/*.csv
+# data/*.json
