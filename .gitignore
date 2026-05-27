@@ -25,6 +25,7 @@ Thumbs.db
 *.log
 checkpoints/
 models/
+experiments/
 
 # Data Files (Uncomment if you want to ignore all csv/json files in data/)
 # data/*.csv

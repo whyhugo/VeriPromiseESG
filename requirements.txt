@@ -1,0 +1,22 @@
+# Core libraries
+transformers>=4.30.0
+scikit-learn>=1.2
+pandas>=2.0
+matplotlib>=3.5
+seaborn>=0.12
+numpy>=1.24
+tensorboard>=2.14
+
+# PyTorch (choose one option)
+# NOTE: PyTorch wheels for specific CUDA versions are provided on the
+# official PyTorch index. Uncomment the line that matches your setup
+# and run `pip install -r requirements.txt -f https://download.pytorch.org/whl/torch_stable.html`
+
+# CPU-only (example):
+# torch==2.2.2+cpu
+
+# CUDA 13.1 (example):
+# torch==2.2.2+cu131
+
+# If you prefer automatic selection, keep a generic entry (may install CPU build):
+torch

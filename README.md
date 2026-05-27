@@ -64,3 +64,36 @@ AI CUP - ESG 永續承諾驗證競賽 2026
 ## 議題評估公式
 
 總分 = 承諾辨識 Macro-F1 × 0.20 +證據支持 Macro-F1 × 0.30 + 清晰度 Macro-F1 × 0.35 + 時機預測 Macro-F1 × 0.15
+
+## Baseline Script
+
+本專案已將官方 notebook baseline 整理為可重跑的 Python script：
+
+```bash
+python3 scripts/train_baseline.py --tensorboard
+```
+
+預設會讀取 `data/vpesg_4k_train_1000.json`，並將每次實驗保存到 `experiments/<timestamp>_<experiment-name>/`，包含：
+
+- `config.json`：模型、訓練參數、資料分佈
+- `history.json` / `history.csv`：每個 epoch 的 loss 與各任務 F1
+- `metrics.json`：最佳模型在 validation split 上的最終指標
+- `predictions_val.json`：validation 預測與 ground truth 對照
+- `best_model.pt`：最佳 validation weighted score 的 checkpoint
+- `tensorboard/`：使用 `--tensorboard` 時的 TensorBoard logs
+
+查看 TensorBoard：
+
+```bash
+tensorboard --logdir experiments
+```
+
+常用調整範例：
+
+```bash
+python3 scripts/train_baseline.py \
+  --experiment-name bert_weighted_len384 \
+  --max-len 384 \
+  --class-weight balanced \
+  --tensorboard
+```
