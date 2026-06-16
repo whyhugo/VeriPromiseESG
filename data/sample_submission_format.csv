@@ -1,0 +1,6 @@
+id,promise_status,verification_timeline,evidence_status,evidence_quality
+12001,No,N/A,N/A,N/A
+12002,Yes,between_2_and_5_years,Yes,Not Clear
+12003,Yes,already,Yes,Clear
+12004,Yes,within_2_years,No,N/A
+12005,Yes,more_than_5_years,Yes,Misleading
