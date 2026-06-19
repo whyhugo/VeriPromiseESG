@@ -19,4 +19,4 @@ tensorboard>=2.14
 # torch==2.2.2+cu131
 
 # If you prefer automatic selection, keep a generic entry (may install CPU build):
-torch
+# torch

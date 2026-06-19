@@ -51,6 +51,38 @@ def parse_args() -> argparse.Namespace:
         default=Path("data/vpesg_4k_train_1000.json"),
         help="Training JSON path. Defaults to the data/ copy.",
     )
+    parser.add_argument(
+        "--merge-val",
+        action="store_true",
+        help="Append the official validation file to the labeled training pool "
+        "(1000+1000=2000 labeled samples).",
+    )
+    parser.add_argument(
+        "--val-data-path",
+        type=Path,
+        default=Path("data/vpesg4k_val_1000.json"),
+        help="Official validation JSON, merged into training when --merge-val is set.",
+    )
+    parser.add_argument(
+        "--cv-folds",
+        type=int,
+        default=0,
+        help="If >1, run stratified K-fold cross-validation instead of a single "
+        "hold-out split, and report mean/std across folds.",
+    )
+    parser.add_argument(
+        "--cv-stratify-field",
+        default="evidence_status",
+        choices=list(EVAL_FIELDS.keys()),
+        help="Field used to stratify CV folds (default evidence_status; "
+        "avoids evidence_quality whose Misleading class has too few samples).",
+    )
+    parser.add_argument(
+        "--full-train",
+        action="store_true",
+        help="Train on ALL labeled data with no validation split (final "
+        "submission model). Trains for the full --epochs and saves the last epoch.",
+    )
     parser.add_argument("--output-dir", type=Path, default=Path("experiments"))
     parser.add_argument("--experiment-name", default="bert_baseline")
     parser.add_argument("--model-name", default="bert-base-chinese")
@@ -191,6 +223,7 @@ def save_config(args: argparse.Namespace, run_dir: Path, data: list[dict[str, An
     config = vars(args).copy()
     config["data_path"] = str(config["data_path"])
     config["output_dir"] = str(config["output_dir"])
+    config["val_data_path"] = str(config["val_data_path"])
     config["run_dir"] = str(run_dir)
     config["eval_fields"] = EVAL_FIELDS
     config["field_weights"] = FIELD_WEIGHTS
@@ -199,12 +232,22 @@ def save_config(args: argparse.Namespace, run_dir: Path, data: list[dict[str, An
     write_json(run_dir / "config.json", config)
 
 
-def run_training(args: argparse.Namespace, run_dir: Path, data: list[dict[str, Any]]) -> None:
+def run_training(
+    args: argparse.Namespace,
+    run_dir: Path,
+    train_data: list[dict[str, Any]],
+    val_data: list[dict[str, Any]],
+    all_data: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Train on train_data, evaluate on val_data, return final metrics.
+
+    When val_data is empty (full-train mode) the last epoch is saved and no
+    evaluation is performed.
+    """
     import numpy as np
     import torch
     import torch.nn as nn
     from sklearn.metrics import classification_report, f1_score
-    from sklearn.model_selection import train_test_split
     from torch.utils.data import DataLoader, Dataset
     from transformers import AutoModel, AutoTokenizer, get_linear_schedule_with_warmup
 
@@ -212,6 +255,10 @@ def run_training(args: argparse.Namespace, run_dir: Path, data: list[dict[str, A
         from torch.utils.tensorboard import SummaryWriter
     except Exception:
         SummaryWriter = None
+
+    if all_data is None:
+        all_data = train_data + val_data
+    full_train = len(val_data) == 0
 
     random.seed(args.seed)
     np.random.seed(args.seed)
@@ -222,21 +269,11 @@ def run_training(args: argparse.Namespace, run_dir: Path, data: list[dict[str, A
     label2id, id2label = build_label_maps()
     num_labels = {field: len(labels) for field, labels in EVAL_FIELDS.items()}
 
-    stratify = None
-    if args.stratify_field:
-        stratify = [item[args.stratify_field] for item in data]
-
-    train_data, val_data = train_test_split(
-        data,
-        test_size=args.val_size,
-        random_state=args.seed,
-        stratify=stratify,
-    )
     write_json(run_dir / "split_summary.json", {
         "train_size": len(train_data),
         "val_size": len(val_data),
         "train_distribution": label_distribution(train_data),
-        "val_distribution": label_distribution(val_data),
+        "val_distribution": label_distribution(val_data) if val_data else {},
     })
 
     tokenizer = AutoTokenizer.from_pretrained(args.model_name)
@@ -284,18 +321,23 @@ def run_training(args: argparse.Namespace, run_dir: Path, data: list[dict[str, A
         num_workers=args.num_workers,
         collate_fn=collate_fn,
     )
-    val_loader = DataLoader(
-        ESGDataset(val_data),
-        batch_size=args.batch_size,
-        shuffle=False,
-        num_workers=args.num_workers,
-        collate_fn=collate_fn,
-    )
+    val_loader = None
+    if not full_train:
+        val_loader = DataLoader(
+            ESGDataset(val_data),
+            batch_size=args.batch_size,
+            shuffle=False,
+            num_workers=args.num_workers,
+            collate_fn=collate_fn,
+        )
 
     class MultiTaskClassifier(nn.Module):
         def __init__(self) -> None:
             super().__init__()
             self.encoder = AutoModel.from_pretrained(args.model_name)
+            # Some checkpoints (e.g. Erlangshen DeBERTa-v2) ship fp16 weights, which
+            # clashes with the fp32 heads. Force fp32; no-op for fp32 backbones.
+            self.encoder = self.encoder.float()
             hidden_size = self.encoder.config.hidden_size
             self.dropout = nn.Dropout(args.dropout)
             self.classifiers = nn.ModuleDict({
@@ -443,6 +485,46 @@ def run_training(args: argparse.Namespace, run_dir: Path, data: list[dict[str, A
     best_epoch = 0
     best_model_path = run_dir / "best_model.pt"
 
+    def save_checkpoint(epoch: int, score: float) -> None:
+        checkpoint_args = vars(args).copy()
+        for key in ("data_path", "output_dir", "val_data_path"):
+            if key in checkpoint_args:
+                checkpoint_args[key] = str(checkpoint_args[key])
+        torch.save(
+            {
+                "model_state_dict": model.state_dict(),
+                "args": checkpoint_args,
+                "label2id": label2id,
+                "id2label": id2label,
+                "best_score": float(score),
+                "best_epoch": epoch,
+            },
+            best_model_path,
+        )
+
+    if full_train:
+        for epoch in range(1, args.epochs + 1):
+            train_loss = train_one_epoch(epoch)
+            print(f"Epoch {epoch}: loss={train_loss:.4f} (full-train, no val)")
+            history.append({"epoch": epoch, "train_loss": train_loss})
+            if writer:
+                writer.add_scalar("train/loss_epoch", train_loss, epoch)
+            write_json(run_dir / "history.json", history)
+        save_checkpoint(args.epochs, -1.0)
+        final_metrics = {
+            "weighted_score": None,
+            "best_epoch": args.epochs,
+            "best_model_path": str(best_model_path),
+            "note": "full-train mode: trained on all labeled data, no validation.",
+        }
+        write_json(run_dir / "metrics.json", final_metrics)
+        if writer:
+            writer.close()
+        print("=" * 72)
+        print(f"Run directory: {run_dir} (full-train, {len(train_data)} samples)")
+        print("=" * 72)
+        return final_metrics
+
     for epoch in range(1, args.epochs + 1):
         train_loss = train_one_epoch(epoch)
         val_predictions = predict(val_loader)
@@ -489,20 +571,7 @@ def run_training(args: argparse.Namespace, run_dir: Path, data: list[dict[str, A
         if weighted > best_score:
             best_score = weighted
             best_epoch = epoch
-            checkpoint_args = vars(args).copy()
-            checkpoint_args["data_path"] = str(checkpoint_args["data_path"])
-            checkpoint_args["output_dir"] = str(checkpoint_args["output_dir"])
-            torch.save(
-                {
-                    "model_state_dict": model.state_dict(),
-                    "args": checkpoint_args,
-                    "label2id": label2id,
-                    "id2label": id2label,
-                    "best_score": float(best_score),
-                    "best_epoch": best_epoch,
-                },
-                best_model_path,
-            )
+            save_checkpoint(best_epoch, best_score)
 
         write_json(run_dir / "history.json", history)
         write_history_csv(run_dir / "history.csv", history)
@@ -530,7 +599,7 @@ def run_training(args: argparse.Namespace, run_dir: Path, data: list[dict[str, A
     ])
 
     if not args.skip_plots:
-        save_plots(run_dir, data, train_data, history, final_metrics)
+        save_plots(run_dir, all_data, train_data, history, final_metrics)
 
     if writer:
         writer.close()
@@ -540,6 +609,7 @@ def run_training(args: argparse.Namespace, run_dir: Path, data: list[dict[str, A
     print(f"Best epoch: {best_epoch}")
     print(f"Final weighted score: {final_metrics['weighted_score']:.5f}")
     print("=" * 72)
+    return final_metrics
 
 
 def save_plots(
@@ -634,9 +704,61 @@ def save_plots(
     plt.close(fig)
 
 
+def run_cross_validation(
+    args: argparse.Namespace, run_dir: Path, data: list[dict[str, Any]]
+) -> None:
+    from sklearn.model_selection import StratifiedKFold
+
+    strat = [item[args.cv_stratify_field] for item in data]
+    skf = StratifiedKFold(n_splits=args.cv_folds, shuffle=True, random_state=args.seed)
+
+    fold_metrics: list[dict[str, Any]] = []
+    for fold, (train_idx, val_idx) in enumerate(skf.split(data, strat), start=1):
+        fold_dir = run_dir / f"fold{fold}"
+        fold_dir.mkdir(parents=True, exist_ok=True)
+        train_data = [data[i] for i in train_idx]
+        val_data = [data[i] for i in val_idx]
+        print(f"\n{'#' * 72}\n# Fold {fold}/{args.cv_folds}  "
+              f"train={len(train_data)} val={len(val_data)}\n{'#' * 72}")
+        metrics = run_training(args, fold_dir, train_data, val_data, all_data=data)
+        fold_metrics.append(metrics)
+
+    import statistics
+    scores = [m["weighted_score"] for m in fold_metrics]
+    per_field = {
+        field: [m["fields"][field]["macro_f1"] for m in fold_metrics]
+        for field in EVAL_FIELDS
+    }
+    summary = {
+        "cv_folds": args.cv_folds,
+        "weighted_score_mean": statistics.mean(scores),
+        "weighted_score_std": statistics.pstdev(scores),
+        "weighted_score_per_fold": scores,
+        "per_field": {
+            field: {
+                "macro_f1_mean": statistics.mean(vals),
+                "macro_f1_std": statistics.pstdev(vals),
+                "per_fold": vals,
+            }
+            for field, vals in per_field.items()
+        },
+    }
+    write_json(run_dir / "cv_summary.json", summary)
+    print("\n" + "=" * 72)
+    print(f"CV {args.cv_folds}-fold weighted_score: "
+          f"{summary['weighted_score_mean']:.5f} ± {summary['weighted_score_std']:.5f}")
+    for field, stats in summary["per_field"].items():
+        print(f"  {field}: {stats['macro_f1_mean']:.4f} ± {stats['macro_f1_std']:.4f}")
+    print("=" * 72)
+
+
 def main() -> None:
     args = parse_args()
     data = load_data(args.data_path)
+    if args.merge_val:
+        val_extra = load_data(args.val_data_path)
+        data = data + val_extra
+        print(f"Merged validation set: +{len(val_extra)} -> {len(data)} labeled samples.")
     if args.limit_data > 0:
         data = data[:args.limit_data]
     run_dir = make_run_dir(args.output_dir, args.experiment_name)
@@ -654,7 +776,21 @@ def main() -> None:
     if args.dry_run:
         print(f"Dry run complete. Run directory: {run_dir}")
         return
-    run_training(args, run_dir, data)
+
+    if args.cv_folds and args.cv_folds > 1:
+        run_cross_validation(args, run_dir, data)
+        return
+
+    if args.full_train:
+        run_training(args, run_dir, data, [], all_data=data)
+        return
+
+    from sklearn.model_selection import train_test_split
+    stratify = [item[args.stratify_field] for item in data] if args.stratify_field else None
+    train_data, val_data = train_test_split(
+        data, test_size=args.val_size, random_state=args.seed, stratify=stratify,
+    )
+    run_training(args, run_dir, train_data, val_data, all_data=data)
 
 
 if __name__ == "__main__":
