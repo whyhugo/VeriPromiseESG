@@ -1,0 +1,90 @@
+<svg viewBox="0 0 920 800" xmlns="http://www.w3.org/2000/svg" font-family="'Noto Sans CJK TC','Microsoft JhengHei',sans-serif">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#5b6b80"/>
+    </marker>
+  </defs>
+  <style>
+    .lbl{font-size:13px;fill:#1f2937;text-anchor:middle;}
+    .sub{font-size:11px;fill:#475569;text-anchor:middle;}
+    .edge{stroke:#5b6b80;stroke-width:1.6;fill:none;}
+    .data{fill:#e8eef5;stroke:#5b7fa6;stroke-width:1.5;}
+    .model{fill:#dbeafe;stroke:#3b6fb0;stroke-width:1.5;}
+    .proc{fill:#eef2f6;stroke:#6b7c93;stroke-width:1.5;}
+    .sub-box{fill:#fff3cd;stroke:#d4a72c;stroke-width:1.5;}
+    .win{fill:#fde68a;stroke:#b45309;stroke-width:2.2;}
+  </style>
+
+  <text x="460" y="22" font-size="17" font-weight="bold" fill="#0f172a" text-anchor="middle">合併資料 → 5-fold CV → 多骨幹 Soft-voting Ensemble</text>
+
+  <!-- data inputs -->
+  <rect class="data" x="220" y="44" width="170" height="46" rx="8"/>
+  <text class="lbl" x="305" y="72">訓練集 1,000（有標籤）</text>
+  <rect class="data" x="540" y="44" width="170" height="46" rx="8"/>
+  <text class="lbl" x="625" y="72">驗證集 1,000（有標籤）</text>
+
+  <!-- merge -->
+  <rect class="proc" x="370" y="124" width="180" height="46" rx="8"/>
+  <text class="lbl" x="460" y="152">合併 2,000 筆 labeled</text>
+
+  <!-- cv -->
+  <rect class="proc" x="345" y="206" width="230" height="50" rx="8"/>
+  <text class="lbl" x="460" y="227">5-fold 分層交叉驗證</text>
+  <text class="sub" x="460" y="244">stratified by evidence_status · seed 42</text>
+
+  <!-- backbones -->
+  <rect class="model" x="95" y="300" width="170" height="50" rx="8"/>
+  <text class="lbl" x="180" y="321">RoBERTa-wwm-ext</text>
+  <text class="sub" x="180" y="338">large · ×5 fold</text>
+  <rect class="model" x="375" y="300" width="170" height="50" rx="8"/>
+  <text class="lbl" x="460" y="321">MacBERT-large</text>
+  <text class="sub" x="460" y="338">×5 fold</text>
+  <rect class="model" x="655" y="300" width="170" height="50" rx="8"/>
+  <text class="lbl" x="740" y="321">DeBERTa-v2-320M</text>
+  <text class="sub" x="740" y="338">×5 fold · fp32</text>
+
+  <!-- multi-task note -->
+  <rect x="655" y="372" width="240" height="74" rx="8" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.2" stroke-dasharray="4 3"/>
+  <text class="sub" x="775" y="392" font-weight="bold">每個模型 = 多任務分類器</text>
+  <text class="sub" x="775" y="410">共享編碼器 → [CLS] → Dropout</text>
+  <text class="sub" x="775" y="426">→ 4 個 Linear 頭（2/5/3/4 類）</text>
+  <text class="sub" x="775" y="442">4×CrossEntropy（balanced）相加</text>
+
+  <!-- checkpoints -->
+  <rect class="proc" x="360" y="392" width="200" height="46" rx="8"/>
+  <text class="lbl" x="460" y="420">15 個 checkpoint</text>
+
+  <!-- test set -->
+  <rect class="data" x="55" y="478" width="170" height="50" rx="8"/>
+  <text class="lbl" x="140" y="499">測試集 2,000</text>
+  <text class="sub" x="140" y="516">無標籤（提交目標）</text>
+
+  <!-- soft voting -->
+  <rect class="proc" x="320" y="476" width="280" height="52" rx="8"/>
+  <text class="lbl" x="460" y="497">Soft-voting Ensemble</text>
+  <text class="sub" x="460" y="515">15 模型 softmax 平均 → argmax（未調參）</text>
+
+  <!-- submission -->
+  <rect class="sub-box" x="350" y="564" width="220" height="46" rx="8"/>
+  <text class="lbl" x="460" y="592">提交 ens_3way_raw.csv</text>
+
+  <!-- winner -->
+  <rect class="win" x="320" y="648" width="280" height="56" rx="10"/>
+  <text x="460" y="672" font-size="15" font-weight="bold" fill="#7c2d12" text-anchor="middle">🏆 Private Leaderboard 第 1 名</text>
+  <text x="460" y="692" font-size="13" fill="#7c2d12" text-anchor="middle">weighted score 0.6538186</text>
+
+  <!-- edges -->
+  <path class="edge" d="M305,90 L305,108 L460,108 L460,124" marker-end="url(#arrow)"/>
+  <path class="edge" d="M625,90 L625,108 L460,108" />
+  <path class="edge" d="M460,170 L460,206" marker-end="url(#arrow)"/>
+  <path class="edge" d="M400,256 L180,300" marker-end="url(#arrow)"/>
+  <path class="edge" d="M460,256 L460,300" marker-end="url(#arrow)"/>
+  <path class="edge" d="M520,256 L740,300" marker-end="url(#arrow)"/>
+  <path class="edge" d="M180,350 L180,415 L360,415" marker-end="url(#arrow)"/>
+  <path class="edge" d="M460,350 L460,392" marker-end="url(#arrow)"/>
+  <path class="edge" d="M740,350 L740,415 L560,415" marker-end="url(#arrow)"/>
+  <path class="edge" d="M460,438 L460,476" marker-end="url(#arrow)"/>
+  <path class="edge" d="M225,503 L320,502" marker-end="url(#arrow)"/>
+  <path class="edge" d="M460,528 L460,564" marker-end="url(#arrow)"/>
+  <path class="edge" d="M460,610 L460,648" marker-end="url(#arrow)"/>
+</svg>
