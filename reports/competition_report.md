@@ -123,9 +123,9 @@ flowchart TD
 | 作業系統 | Linux |
 | 主要框架 | PyTorch 2.12.0（CUDA 12.6）、HuggingFace Transformers、scikit-learn |
 
-**訓練時長**（5-fold 交叉驗證，每折產生 1 個 checkpoint）
+**訓練時長**（5-fold 交叉驗證，每 fold 產生 1 個 checkpoint）
 
-| 骨幹模型 | 設定 | 每折約 | 5-fold 合計約 |
+| 骨幹模型 | 設定 | 每 fold 約 | 5-fold 合計約 |
 |---|---|:---:|:---:|
 | RoBERTa-wwm-ext-large | bs16, fp16 | 21 min | **106 min** |
 | MacBERT-large | bs16, fp16 | 21 min | **105 min** |
@@ -174,6 +174,8 @@ RoBERTa-large 單模最強；MacBERT 與 DeBERTa 單模較弱，但作為 ensemb
 - **Erlangshen DeBERTa checkpoint 權重以 fp16 儲存**：載入後編碼器輸出為 Half，與 fp32 分類頭衝突（`mat1 and mat2 must have the same dtype`）；於模型建立時對編碼器呼叫 `.float()` 強制轉 fp32 解決（對 RoBERTa/MacBERT 為無作用）。
 
 ### 程式檔案
+
+GitHub repository: https://github.com/whyhugo/VeriPromiseESG
 
 | 檔案 | 功能 |
 |---|---|
