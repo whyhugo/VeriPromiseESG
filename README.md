@@ -97,3 +97,84 @@ python3 scripts/train_baseline.py \
   --class-weight balanced \
   --tensorboard
 ```
+
+---
+
+## Reproduction Guide
+
+### 1. 環境配置
+
+- 作業系統：Linux；Python 3.12
+- 硬體：單張 NVIDIA TITAN RTX（24 GB VRAM）、16 核 CPU、62 GB RAM
+- 安裝：
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+# 另需依 CUDA 版本安裝對應 PyTorch（本隊使用 torch 2.12.0 + CUDA 12.6）：
+# pip install torch --index-url https://download.pytorch.org/whl/cu126
+```
+
+### 2. 資料放置
+
+將官方三份資料放入 `data/`：`vpesg_4k_train_1000.json`、`vpesg4k_val_1000.json`、`vpesg4k_test_2000.json`。
+
+### 3. 訓練三個骨幹（各 5-fold 交叉驗證、合併驗證集）
+
+```bash
+# (a) RoBERTa-large
+python3 scripts/train_baseline.py --experiment-name roberta_large_mergeval_cv5 \
+  --model-name hfl/chinese-roberta-wwm-ext-large \
+  --merge-val --cv-folds 5 --cv-stratify-field evidence_status \
+  --max-len 384 --batch-size 16 --lr 4e-5 --epochs 15 --class-weight balanced --fp16 --seed 42
+
+# (b) MacBERT-large
+python3 scripts/train_baseline.py --experiment-name macbert_large_mergeval_cv5 \
+  --model-name hfl/chinese-macbert-large \
+  --merge-val --cv-folds 5 --cv-stratify-field evidence_status \
+  --max-len 384 --batch-size 16 --lr 4e-5 --epochs 15 --class-weight balanced --fp16 --seed 42
+
+# (c) DeBERTa-v2-320M（不可用 fp16，batch 減半）
+python3 scripts/train_baseline.py --experiment-name deberta_v2_320m_mergeval_cv5 \
+  --model-name IDEA-CCNL/Erlangshen-DeBERTa-v2-320M-Chinese \
+  --merge-val --cv-folds 5 --cv-stratify-field evidence_status \
+  --max-len 384 --batch-size 8 --lr 2e-5 --epochs 15 --class-weight balanced --seed 42
+```
+
+每個骨幹會在 `experiments/<timestamp>_<name>/fold{1..5}/best_model.pt` 產生 5 個 checkpoint，共 15 個。
+
+### 4. Ensemble 推論 → 產生最終提交檔
+
+```bash
+ROB=$(ls -d experiments/*roberta_large_mergeval_cv5 | head -1)
+MAC=$(ls -d experiments/*macbert_large_mergeval_cv5 | head -1)
+DEB=$(ls -d experiments/*deberta_v2_320m_mergeval_cv5 | head -1)
+
+python3 scripts/predict_test.py \
+  --checkpoint $ROB/fold{1,2,3,4,5}/best_model.pt \
+               $MAC/fold{1,2,3,4,5}/best_model.pt \
+               $DEB/fold{1,2,3,4,5}/best_model.pt \
+  --output submissions/ens_3way_raw.csv
+```
+
+輸出 `submissions/ens_3way_raw.csv`（2,000 列 + 表頭，欄位 `id,promise_status,verification_timeline,evidence_status,evidence_quality`），即為上傳 AIdea 之最終檔案。**注意：最終提交採未調參的純 soft-voting，不要套用 `tune_thresholds.py` 的偏置（理由見報告 §關鍵決策）。**
+
+### 5. 重要模組的輸入／輸出
+
+| 程式 | 輸入 | 輸出 |
+|---|---|---|
+| `scripts/train_baseline.py` | 訓練 JSON（`--merge-val` 時併入 val） | `experiments/<run>/`：`config.json`、`cv_summary.json`、各 fold 的 `metrics.json`、`best_model.pt` |
+| `scripts/predict_test.py` | 1+ 個 `best_model.pt`、測試 JSON、（選用）`--bias-file` | 提交用 CSV |
+| `scripts/tune_thresholds.py` | 某 CV run 目錄（可多個骨幹） | `class_bias.json`（**最終未採用**，保留作為過擬合分析紀錄） |
+
+### 6. 關鍵參數速查
+
+| 參數 | 值 | 說明 |
+|---|---|---|
+| `--merge-val` | 開 | 併入官方驗證集 → 2,000 筆訓練 |
+| `--cv-folds` | 5 | 分層 5-fold CV |
+| `--cv-stratify-field` | evidence_status | 分層依據欄位 |
+| `--max-len` | 384 | tokenizer 截斷長度 |
+| `--class-weight` | balanced | 對抗類別不平衡 |
+| `--seed` | 42 | 固定亂數（含 CV 切分），確保可重現 |
