@@ -1,0 +1,31 @@
+﻿tier,task,label,mlpromise_pct,vpesg_pct,vpesg_n,n_companies
+High,Promise Id.,Yes,52.78,82.76,624,17
+High,Promise Id.,No,47.22,17.24,130,17
+High,Act. Evidence,Yes,25.14,65.65,495,17
+High,Act. Evidence,No,74.86,34.35,259,17
+High,Clarity,Clear,66.29,83.64,414,17
+High,Clarity,Not Clear,32.58,16.16,80,17
+High,Clarity,Misleading,1.12,0.2,1,17
+High,Timing,within_2_years,54.64,4.96,18,17
+High,Timing,between_2_and_5_years,4.92,56.2,204,17
+High,Timing,more_than_5_years,40.44,38.84,141,17
+Medium,Promise Id.,Yes,40.12,80.09,535,16
+Medium,Promise Id.,No,59.88,19.91,133,16
+Medium,Act. Evidence,Yes,29.01,70.21,469,16
+Medium,Act. Evidence,No,70.99,29.79,199,16
+Medium,Clarity,Clear,59.14,83.37,391,16
+Medium,Clarity,Not Clear,40.86,16.42,77,16
+Medium,Clarity,Misleading,0.0,0.21,1,16
+Medium,Timing,within_2_years,78.21,3.54,9,16
+Medium,Timing,between_2_and_5_years,12.82,53.94,137,16
+Medium,Timing,more_than_5_years,8.97,42.52,108,16
+Low,Promise Id.,Yes,23.23,80.97,468,16
+Low,Promise Id.,No,76.77,19.03,110,16
+Low,Act. Evidence,Yes,16.54,65.92,381,16
+Low,Act. Evidence,No,83.46,34.08,197,16
+Low,Clarity,Clear,80.49,82.15,313,16
+Low,Clarity,Not Clear,19.51,17.85,68,16
+Low,Clarity,Misleading,0.0,0.0,0,16
+Low,Timing,within_2_years,78.79,2.4,7,16
+Low,Timing,between_2_and_5_years,21.21,53.77,157,16
+Low,Timing,more_than_5_years,0.0,43.84,128,16

@@ -1,0 +1,50 @@
+﻿ticker,company_key,name_variants,n_instances,n_pdf_urls,splits,twse_name,industry_code,industry_zh,industry_en,mlpromise_group,shares_outstanding,close_price,market_cap_ntd,mktcap_tier_global,mktcap_tier_within_industry,price_snapshot_roc_date
+2207,hotaimotor,hotaimotor,71,1,test|train|val,和泰車,12,汽車工業,Automobile,Other,557102768,508.0,283008206144,Low,High,1150820
+6446,pec,pec,55,1,test|train|val,藥華藥,22,生技醫療業,Biotechnology and Medical Care,Biomedical,422433303,1375.0,580845791625,Medium,High,1150820
+1101,tcc,tcc,103,1,test|train|val,台泥,01,水泥工業,Cement,Other,7723181742,24.8,191534907201,Low,High,1150820
+2345,accton,accton,103,1,test|train|val,智邦,27,通信網路業,Communications and Internet,Other,561117897,2105.0,1181153173185,High,High,1150820
+2412,cht,cht,83,1,test|train|val,中華電,27,通信網路業,Communications and Internet,Other,7757446545,136.5,1058891453392,Medium,High,1150820
+3045,twm,twm,93,1,test|train|val,台灣大,27,通信網路業,Communications and Internet,Other,3723261811,115.0,428175108265,Medium,Medium,1150820
+4904,fet,fet,54,1,test|train|val,遠傳,27,通信網路業,Communications and Internet,Other,3607705357,102.0,367985946414,Low,Low,1150820
+2382,qci,qci,112,1,test|train|val,廣達,25,電腦及週邊設備業,Computer and Peripheral Equipment,Other,3862627432,327.0,1263079170264,High,High,1150820
+6669,wiwynn,wiwynn,81,1,test|train|val,緯穎,25,電腦及週邊設備業,Computer and Peripheral Equipment,Other,185840791,6325.0,1175443003075,High,High,1150820
+3017,avc,avc,50,1,test|train|val,奇鋐,25,電腦及週邊設備業,Computer and Peripheral Equipment,Other,392543007,2985.0,1171740875895,High,High,1150820
+2301,ltc,ltc,102,1,test|train|val,光寶科,25,電腦及週邊設備業,Computer and Peripheral Equipment,Other,2316107763,267.0,618400772721,Medium,Medium,1150820
+2395,acl,acl,104,1,test|train|val,研華,25,電腦及週邊設備業,Computer and Peripheral Equipment,Other,868254487,673.0,584335269751,Medium,Medium,1150820
+3231,Wistron,Wistron|wistron,186,1,test|train|val,緯創,25,電腦及週邊設備業,Computer and Peripheral Equipment,Other,3180052250,180.0,572409405000,Medium,Low,1150820
+4938,pegatron,pegatron,57,1,test|train|val,和碩,25,電腦及週邊設備業,Computer and Peripheral Equipment,Other,2682044103,89.7,240579356039,Low,Low,1150820
+2308,delta,delta,99,1,test|train|val,台達電,28,電子零組件業,Electronic Parts and Components,Other,2597543329,1745.0,4532713109105,High,High,1150820
+2383,emc2,emc2,67,1,test|train|val,台光電,28,電子零組件業,Electronic Parts and Components,Other,358321114,5985.0,2144551867290,High,Medium,1150820
+2327,yageo,yageo,65,1,test|train|val,國巨*,28,電子零組件業,Electronic Parts and Components,Other,2058730688,562.0,1157006646656,High,Low,1150820
+2881,fubon,fubon,177,1,test|train|val,富邦金,17,金融保險,Finance and Insurance,Other,15607354952,128.0,1997741433856,High,High,1150820
+2882,cathay,cathay,76,1,test|train|val,國泰金,17,金融保險,Finance and Insurance,Other,16202510128,97.7,1582985239505,High,High,1150820
+2891,ctbc,ctbc,22,1,test|train|val,中信金,17,金融保險,Finance and Insurance,Other,20175922806,63.4,1279153505900,High,High,1150820
+2887,taishin,taishin,100,1,test|train|val,台新新光金,17,金融保險,Finance and Insurance,Other,29606150549,35.95,1064341112236,High,High,1150820
+2885,yuanta,yuanta,35,1,test|train|val,元大金,17,金融保險,Finance and Insurance,Other,13331149946,62.1,827864411646,Medium,Medium,1150820
+2886,mega,mega,79,1,test|train|val,兆豐金,17,金融保險,Finance and Insurance,Other,14833378282,46.4,688268752284,Medium,Medium,1150820
+2884,esfh,esfh,81,1,test|train|val,玉山金,17,金融保險,Finance and Insurance,Other,16192000000,37.35,604771200000,Medium,Medium,1150820
+2883,kgi,kgi,108,1,test|train|val,凱基金,17,金融保險,Finance and Insurance,Other,18556989414,30.4,564132478185,Medium,Medium,1150820
+2880,hnfhc,hnfhc,79,1,test|train|val,華南金,17,金融保險,Finance and Insurance,Other,13916965089,38.8,539978245453,Medium,Low,1150820
+2892,ffhc,ffhc,79,1,test|train|val,第一金,17,金融保險,Finance and Insurance,Other,14379468650,33.3,478836306044,Medium,Low,1150820
+5880,tcfhc,tcfhc,180,1,test|train|val,合庫金,17,金融保險,Finance and Insurance,Other,15680936914,24.8,388887235467,Low,Low,1150820
+5876,scsb,scsb,81,1,test|train|val,上海商銀,17,金融保險,Finance and Insurance,Other,4861603140,43.65,212208977061,Low,Low,1150820
+1216,unipresident,unipresident,74,1,test|train|val,統一,02,食品工業,Food,Other,5682015421,78.2,444333605922,Medium,High,1150820
+2002,csc,csc,69,1,test|train|val,中鋼,10,鋼鐵工業,Iron and Steel,Other,15773128996,19.35,305210046072,Low,High,1150820
+6505,fpcc,fpcc,55,1,test|train|val,台塑化,23,油電燃氣業,"Oil, Gas and Electricity",Energy,9525959652,73.0,695395054596,Medium,High,1150820
+3008,largan,largan,68,1,test|train|val,大立光,26,光電業,Optoelectronic,Other,130798197,5515.0,721352056455,Medium,High,1150820
+5871,chailease,chailease,71,1,test|train|val,中租-KY,20,其他,Other,Other,1861421161,111.5,207548459451,Low,High,1150820
+2317,honhai,honhai,85,1,test|train|val,鴻海,31,其他電子業,Other Electronic,Other,14028648626,246.5,3458061886309,High,High,1150820
+1907,yfy,yfy,8,1,test|train|val,永豐餘,09,造紙工業,Paper and Pulp,Other,1660371495,30.45,50558312022,Low,High,1150820
+1303,npc,npc,18,1,test|train|val,南亞,03,塑膠工業,Plastics,Other,7930821589,186.0,1475132815554,High,High,1150820
+1301,fpc,fpc,82,1,test|train|val,台塑,03,塑膠工業,Plastics,Other,6365740781,57.8,367939817141,Low,Medium,1150820
+2330,tsmc,tsmc,97,1,test|train|val,台積電,24,半導體業,Semiconductor,Semiconductor,25932370067,2375.0,61589378909125,High,High,1150820
+2454,mediatek,mediatek,76,1,test|train|val,聯發科,24,半導體業,Semiconductor,Semiconductor,1603895407,3700.0,5934413005900,High,High,1150820
+3711,aseh,aseh,123,1,test|train|val,日月光投控,24,半導體業,Semiconductor,Semiconductor,4470572282,590.0,2637637646380,High,High,1150820
+2303,umc,umc,153,1,test|train|val,聯電,24,半導體業,Semiconductor,Semiconductor,12570093899,115.5,1451845845334,High,Medium,1150820
+2379,rt,rt,70,1,test|train|val,瑞昱,24,半導體業,Semiconductor,Semiconductor,515512641,703.0,362405386623,Low,Medium,1150820
+3661,alchip,alchip,72,1,test|train|val,世芯-KY,24,半導體業,Semiconductor,Semiconductor,86270239,3750.0,323513396250,Low,Low,1150820
+3034,novatek,novatek,15,1,test|train|val,聯詠,24,半導體業,Semiconductor,Semiconductor,608511469,527.0,320685544163,Low,Low,1150820
+2603,emc,emc,65,1,test|train|val,長榮,15,航運業,Shipping and Transportation,Other,2165042996,246.0,532600577016,Medium,High,1150820
+2615,wanhai,wanhai,69,1,test|train|val,萬海,15,航運業,Shipping and Transportation,Other,2806146293,113.5,318497604255,Low,Medium,1150820
+2609,ymtc,ymtc,80,1,test|train|val,陽明,15,航運業,Shipping and Transportation,Other,3492104270,60.3,210573887481,Low,Low,1150820
+2912,pcsc,pcsc,68,1,test|train|val,統一超,18,貿易百貨,Trading and Consumer Goods,Other,1039622255,220.0,228716896100,Low,High,1150820

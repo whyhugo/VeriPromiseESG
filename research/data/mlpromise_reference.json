@@ -1,0 +1,105 @@
+{
+  "_source": {
+    "citation": "Yohei Seki, Hakusen Shu, Anais Lhuissier, Hanwool Lee, Juyeon Kang, Min-Yuh Day, Chung-Chi Chen. 2025. ML-Promise: A Multilingual Dataset for Corporate Promise Verification. EMNLP 2025, pages 20353-20366.",
+    "note": "All figures transcribed by hand from the published tables. The Chinese subset of ML-Promise is sourced from Taiwanese companies (UK, France, Taiwan, Japan, Korea are the five countries; Chinese = Taiwan).",
+    "corpus_design": "3 industries x 3 companies = 9 companies for the Chinese subset; 610 Chinese instances in total per Section 3.4.",
+    "caveat": "Table 1 reports 199 instances in the Chinese Promise-Identification row, which is fewer than the 610 Chinese instances stated in Section 3.4. The counts below are used as published; the discrepancy is flagged in the analysis output."
+  },
+
+  "table1_chinese": {
+    "_table": "Table 1: Label distribution by language (Chinese column)",
+    "promise_identification": {"Yes": 80, "No": 119, "_pct": {"Yes": 40.2, "No": 59.8}},
+    "actionable_evidence": {"Yes": 40, "No": 159, "_pct": {"Yes": 20.1, "No": 79.9}},
+    "clarity": {"Clear": 22, "Not Clear": 12, "Misleading": 0,
+                "_pct": {"Clear": 64.7, "Not Clear": 35.3, "Misleading": 0.0}},
+    "timing": {"within_2_years": 30, "between_2_and_5_years": 8,
+               "more_than_5_years": 12, "other": 30,
+               "_pct": {"within_2_years": 37.5, "between_2_and_5_years": 10.0,
+                        "more_than_5_years": 15.0, "other": 37.5}}
+  },
+
+  "table2_chinese_by_marketcap": {
+    "_table": "Table 2: Distribution across different market capitalization (Chinese columns)",
+    "_note": "Percentages only; no counts published. Timing rows exclude the 'Other' class and are renormalised over the three real horizons.",
+    "High": {
+      "promise_identification": {"Yes": 52.78, "No": 47.22},
+      "actionable_evidence": {"Yes": 25.14, "No": 74.86},
+      "clarity": {"Clear": 66.29, "Not Clear": 32.58, "Misleading": 1.12},
+      "timing": {"within_2_years": 54.64, "between_2_and_5_years": 4.92, "more_than_5_years": 40.44}
+    },
+    "Medium": {
+      "promise_identification": {"Yes": 40.12, "No": 59.88},
+      "actionable_evidence": {"Yes": 29.01, "No": 70.99},
+      "clarity": {"Clear": 59.14, "Not Clear": 40.86, "Misleading": 0.00},
+      "timing": {"within_2_years": 78.21, "between_2_and_5_years": 12.82, "more_than_5_years": 8.97}
+    },
+    "Low": {
+      "promise_identification": {"Yes": 23.23, "No": 76.77},
+      "actionable_evidence": {"Yes": 16.54, "No": 83.46},
+      "clarity": {"Clear": 80.49, "Not Clear": 19.51, "Misleading": 0.00},
+      "timing": {"within_2_years": 78.79, "between_2_and_5_years": 21.21, "more_than_5_years": 0.00}
+    }
+  },
+
+  "table3_chinese_by_industry": {
+    "_table": "Table 3: Distribution across different industry (Chinese columns: Sem., Energy, Bio.)",
+    "_note": "Percentages only; no counts published. Timing rows exclude the 'Other' class and are renormalised over the three real horizons.",
+    "Semiconductor": {
+      "promise_identification": {"Yes": 48.90, "No": 51.10},
+      "actionable_evidence": {"Yes": 28.61, "No": 71.39},
+      "clarity": {"Clear": 60.00, "Not Clear": 40.00, "Misleading": 0.00},
+      "timing": {"within_2_years": 59.87, "between_2_and_5_years": 1.27, "more_than_5_years": 38.85}
+    },
+    "Energy": {
+      "promise_identification": {"Yes": 58.24, "No": 41.76},
+      "actionable_evidence": {"Yes": 30.00, "No": 70.00},
+      "clarity": {"Clear": 62.38, "Not Clear": 36.63, "Misleading": 0.99},
+      "timing": {"within_2_years": 70.27, "between_2_and_5_years": 14.41, "more_than_5_years": 15.32}
+    },
+    "Biomedical": {
+      "promise_identification": {"Yes": 18.11, "No": 81.89},
+      "actionable_evidence": {"Yes": 14.17, "No": 85.83},
+      "clarity": {"Clear": 88.57, "Not Clear": 11.43, "Misleading": 0.00},
+      "timing": {"within_2_years": 66.67, "between_2_and_5_years": 19.05, "more_than_5_years": 14.29}
+    }
+  },
+
+  "published_claims": [
+    {
+      "id": "C1",
+      "claim": "Corporations in Taiwan and Korea tend to make more short-term promises (within 2 years), whereas corporations in the remaining countries tend to make longer-term promises.",
+      "location": "Section 3.4",
+      "testable_prediction": "within_2_years should be a high-frequency class among promise-bearing instances in a Taiwanese corpus."
+    },
+    {
+      "id": "C2",
+      "claim": "Small and medium-sized Taiwan firms show a strong preference for short-term verification (within two years), while large companies have a more balanced distribution.",
+      "location": "Section 4.1",
+      "testable_prediction": "within_2_years share should decrease monotonically with market capitalisation."
+    },
+    {
+      "id": "C3",
+      "claim": "In most languages, including Chinese, high-market-cap companies show a significantly higher rate of explicit promises than medium- and low-cap firms (Chinese: 52.78% -> 23.23%).",
+      "location": "Section 4.1",
+      "testable_prediction": "promise_status=Yes rate should increase monotonically with market capitalisation."
+    },
+    {
+      "id": "C4",
+      "claim": "Chinese data show the highest clarity for small firms (80.49% for low-cap companies).",
+      "location": "Section 4.1",
+      "testable_prediction": "Clear share should be highest in the Low market-cap tier."
+    },
+    {
+      "id": "C5",
+      "claim": "The Chinese Semiconductor industry has a significant proportion of long-term commitments (38.85% for more than five years).",
+      "location": "Section 4.2",
+      "testable_prediction": "more_than_5_years should be around 39% among semiconductor promise-bearing instances (excluding 'Other')."
+    },
+    {
+      "id": "C6",
+      "claim": "Lower Chinese model performance may be due to the reliance on tables and figures in Chinese reports.",
+      "location": "Section 5.2 and Section 6",
+      "testable_prediction": "Not testable from labels alone; requires document-level/multimodal experiments."
+    }
+  ]
+}

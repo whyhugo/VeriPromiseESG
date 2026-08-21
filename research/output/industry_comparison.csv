@@ -1,0 +1,31 @@
+﻿industry,task,label,mlpromise_pct,vpesg_pct,vpesg_n,n_companies
+Semiconductor,Promise Id.,Yes,48.9,80.0,244,7
+Semiconductor,Promise Id.,No,51.1,20.0,61,7
+Semiconductor,Act. Evidence,Yes,28.61,55.08,168,7
+Semiconductor,Act. Evidence,No,71.39,44.92,137,7
+Semiconductor,Clarity,Clear,60.0,85.12,143,7
+Semiconductor,Clarity,Not Clear,40.0,14.29,24,7
+Semiconductor,Clarity,Misleading,0.0,0.6,1,7
+Semiconductor,Timing,within_2_years,59.87,7.08,8,7
+Semiconductor,Timing,between_2_and_5_years,1.27,55.75,63,7
+Semiconductor,Timing,more_than_5_years,38.85,37.17,42,7
+Energy,Promise Id.,Yes,58.24,85.19,23,1
+Energy,Promise Id.,No,41.76,14.81,4,1
+Energy,Act. Evidence,Yes,30.0,51.85,14,1
+Energy,Act. Evidence,No,70.0,48.15,13,1
+Energy,Clarity,Clear,62.38,85.71,12,1
+Energy,Clarity,Not Clear,36.63,14.29,2,1
+Energy,Clarity,Misleading,0.99,0.0,0,1
+Energy,Timing,within_2_years,70.27,5.88,1,1
+Energy,Timing,between_2_and_5_years,14.41,76.47,13,1
+Energy,Timing,more_than_5_years,15.32,17.65,3,1
+Biomedical,Promise Id.,Yes,18.11,74.07,20,1
+Biomedical,Promise Id.,No,81.89,25.93,7,1
+Biomedical,Act. Evidence,Yes,14.17,62.96,17,1
+Biomedical,Act. Evidence,No,85.83,37.04,10,1
+Biomedical,Clarity,Clear,88.57,82.35,14,1
+Biomedical,Clarity,Not Clear,11.43,17.65,3,1
+Biomedical,Clarity,Misleading,0.0,0.0,0,1
+Biomedical,Timing,within_2_years,66.67,0.0,0,1
+Biomedical,Timing,between_2_and_5_years,19.05,78.57,11,1
+Biomedical,Timing,more_than_5_years,14.29,21.43,3,1
