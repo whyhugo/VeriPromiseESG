@@ -30,3 +30,6 @@ experiments/
 # Data Files (Uncomment if you want to ignore all csv/json files in data/)
 # data/*.csv
 # data/*.json
+
+# External dataset clone (github.com/veripromiseesg/veripromiseesgdataset)
+data/veripromiseesgdataset/
