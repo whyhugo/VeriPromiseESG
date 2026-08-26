@@ -88,7 +88,13 @@ def run_fold(tr_txt, tr_y, eval_txts, nlab, model_name, maxlen, epochs, bs, lr):
     from transformers import AutoModelForSequenceClassification, AutoTokenizer
     tok = AutoTokenizer.from_pretrained(model_name)
     mdl = AutoModelForSequenceClassification.from_pretrained(
-        model_name, num_labels=nlab).to("cuda")
+        model_name, num_labels=nlab)
+    # The Erlangshen DeBERTa-v2 checkpoint ships fp16 weights. Left as-is the
+    # encoder returns Half against an fp32 head, and once the GradScaler is
+    # removed AdamW silently underflows instead of erroring: the model never
+    # learns and collapses onto the minority class (promise_status OOF 0.1572,
+    # exactly the always-No score). Force fp32; a no-op for the BERT backbones.
+    mdl = mdl.float().to("cuda")
     opt = torch.optim.AdamW(mdl.parameters(), lr=lr, weight_decay=0.01)
     dl = DataLoader(DS(tr_txt, tr_y, tok, maxlen), batch_size=bs, shuffle=True)
     sched = torch.optim.lr_scheduler.OneCycleLR(
@@ -97,7 +103,10 @@ def run_fold(tr_txt, tr_y, eval_txts, nlab, model_name, maxlen, epochs, bs, lr):
     w = torch.tensor(len(tr_y) / (nlab * np.maximum(cnt, 1)),
                      dtype=torch.float32, device="cuda")
     lossf = nn.CrossEntropyLoss(weight=w)
-    scaler = torch.amp.GradScaler("cuda")
+    # No GradScaler: it exists to stop fp16 gradients underflowing, and bf16 has
+    # the same exponent range as fp32 so scaling is a no-op. DeBERTa-v2 rejects
+    # it outright ("Attempting to unscale FP16 gradients") where the BERT-style
+    # backbones merely tolerated it.
     mdl.train()
     for _ in range(epochs):
         for enc, y in dl:
@@ -106,9 +115,8 @@ def run_fold(tr_txt, tr_y, eval_txts, nlab, model_name, maxlen, epochs, bs, lr):
             opt.zero_grad(set_to_none=True)
             with torch.amp.autocast("cuda", dtype=torch.bfloat16):
                 loss = lossf(mdl(**enc).logits.float(), y)
-            scaler.scale(loss).backward()
-            scaler.step(opt)
-            scaler.update()
+            loss.backward()
+            opt.step()
             sched.step()
     mdl.eval()
     outs = []
@@ -232,10 +240,18 @@ def main():
             tp = np.zeros((len(te), len(labels)))
             skf = StratifiedKFold(n_splits=args.folds, shuffle=True,
                                   random_state=SEED)
+            # DeBERTa-v2's disentangled attention holds several extra
+            # attention-sized tensors per layer, so it needs a smaller batch
+            # than the BERT-style backbones at the same sequence length.
+            # Config for the DeBERTa backbone follows what the competition
+            # system used for it: smaller batch, higher learning rate.
+            is_deb = "deberta" in bb.lower()
+            bs = max(4, args.bs // 3) if is_deb else args.bs
+            lr = 2e-5 if is_deb else args.lr
             for k, (ia, ib) in enumerate(skf.split(np.zeros(len(pool)), y)):
                 pv, pt = run_fold([txt[i] for i in ia], y[ia],
                                   [[txt[i] for i in ib], te_txt], len(labels),
-                                  bb, args.maxlen, args.epochs, args.bs, args.lr)
+                                  bb, args.maxlen, args.epochs, bs, lr)
                 oof[ib] = pv
                 tp += pt / args.folds
                 print("  [%s | %s] fold %d/%d" % (bb.split("/")[-1], f, k + 1,
