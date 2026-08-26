@@ -12,7 +12,7 @@
 #   Send-RpFile -Local research\scripts\09_x.py -Remote /workspace/VeriPromiseESG/research/scripts/09_x.py
 #   Invoke-Rp -Script "cd /workspace/VeriPromiseESG && python research/scripts/09_x.py"
 
-$RpHost = "lh7m93xhbhsv30-6441166c@ssh.runpod.io"
+$RpHost = "77ye2k3ml7upns-64410e2b@ssh.runpod.io"
 $RpKey = "$env:USERPROFILE\.ssh\id_ed25519"
 $RpRepo = "/workspace/VeriPromiseESG"
 
