@@ -1,0 +1,65 @@
+{
+ "ens_3way_tuned.csv": {
+  "competition_weighted": 0.6384425578185355,
+  "uniform_macro_f1": 0.6627698335068883,
+  "uniform_balanced_acc": 0.6596644511261822,
+  "uniform_mcc": 0.5628409149651625,
+  "uniform_weighted_f1": 0.7626937425872002,
+  "joint_exact_match": 0.488,
+  "ceiling_ratio": 0.5829032366283485
+ },
+ "ens_3way_raw.csv": {
+  "competition_weighted": 0.6362099143036469,
+  "uniform_macro_f1": 0.6599668346369328,
+  "uniform_balanced_acc": 0.6391636191074622,
+  "uniform_mcc": 0.5680440800328284,
+  "uniform_weighted_f1": 0.7674157326510531,
+  "joint_exact_match": 0.513,
+  "ceiling_ratio": 0.5847211165766955
+ },
+ "ens_rob_mac_tuned.csv": {
+  "competition_weighted": 0.6342136843284928,
+  "uniform_macro_f1": 0.657455203872863,
+  "uniform_balanced_acc": 0.6477154473029149,
+  "uniform_mcc": 0.558026213662552,
+  "uniform_weighted_f1": 0.7626116437346782,
+  "joint_exact_match": 0.5065,
+  "ceiling_ratio": 0.5773428880577397
+ },
+ "roberta_large_cv5_ensemble_tuned.csv": {
+  "competition_weighted": 0.6136109485981031,
+  "uniform_macro_f1": 0.6401755601054939,
+  "uniform_balanced_acc": 0.6547218953551099,
+  "uniform_mcc": 0.5478860932584663,
+  "uniform_weighted_f1": 0.7500064928493412,
+  "joint_exact_match": 0.491,
+  "ceiling_ratio": 0.5665565170822753
+ },
+ "roberta_large_cv5_ensemble.csv": {
+  "competition_weighted": 0.6267033966315241,
+  "uniform_macro_f1": 0.651677713557119,
+  "uniform_balanced_acc": 0.6375168282294145,
+  "uniform_mcc": 0.5496563181914594,
+  "uniform_weighted_f1": 0.7583401658486728,
+  "joint_exact_match": 0.5005,
+  "ceiling_ratio": 0.5670282144782085
+ },
+ "[reference] always-majority": {
+  "competition_weighted": 0.24837777968820465,
+  "uniform_macro_f1": 0.2505425031653627,
+  "uniform_balanced_acc": 0.3208333333333333,
+  "uniform_mcc": 0.0,
+  "uniform_weighted_f1": 0.4651882886807846,
+  "joint_exact_match": 0.292,
+  "ceiling_ratio": -0.19003932763161613
+ },
+ "[reference] stratified-random": {
+  "competition_weighted": 0.31283716687808133,
+  "uniform_macro_f1": 0.31694675240364223,
+  "uniform_balanced_acc": 0.31702573851327503,
+  "uniform_mcc": -0.003952375312792349,
+  "uniform_weighted_f1": 0.4709071932783023,
+  "joint_exact_match": 0.053,
+  "ceiling_ratio": -0.003915119683719846
+ }
+}
