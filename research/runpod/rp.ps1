@@ -12,7 +12,7 @@
 #   Send-RpFile -Local research\scripts\09_x.py -Remote /workspace/VeriPromiseESG/research/scripts/09_x.py
 #   Invoke-Rp -Script "cd /workspace/VeriPromiseESG && python research/scripts/09_x.py"
 
-$RpHost = "77ye2k3ml7upns-64410e2b@ssh.runpod.io"
+$RpHost = "tau6w3px1nve5n-64411411@ssh.runpod.io"
 $RpKey = "$env:USERPROFILE\.ssh\id_ed25519"
 $RpRepo = "/workspace/VeriPromiseESG"
 
@@ -66,37 +66,59 @@ function Get-RpBetween {
 }
 
 function Send-RpFile {
-    <#  Ship a local file to the pod as short base64 chunks. #>
+    <#  Ship a local file to the pod as short base64 chunks.
+
+        Some pods echo back a duplicated or dropped character when input
+        arrives quickly -- a doubled slash in a path, a repeated letter in a
+        keyword. One corrupted line is enough to make `base64 -d` emit nothing,
+        so the md5 is checked and the whole transfer retried.
+    #>
     param(
         [Parameter(Mandatory = $true)][string]$Local,
         [Parameter(Mandatory = $true)][string]$Remote,
-        [int]$ChunkSize = 240
+        [int]$ChunkSize = 120,
+        [int]$Retries = 4
     )
     if (-not (Test-Path $Local)) { throw "no such local file: $Local" }
     $bytes = [System.IO.File]::ReadAllBytes((Resolve-Path $Local))
     $b64 = [Convert]::ToBase64String($bytes)
     $dir = [System.IO.Path]::GetDirectoryName($Remote) -replace "\\", "/"
 
+    # One heredoc rather than a printf per chunk. Some pods duplicate characters
+    # in the echoed input -- "runpod" came back as "runpodd", "x.b64" as
+    # "x..b64" -- and with the destination path repeated on every line most
+    # chunks then appended to a mistyped filename, leaving the real one empty.
+    # Inside a heredoc the path appears once and every other line is pure
+    # base64, where a corrupted character is caught by the md5 check.
+    $stage = "/tmp/rpx_" + [guid]::NewGuid().ToString("N").Substring(0, 8) + ".b64"
     $sb = New-Object System.Text.StringBuilder
-    [void]$sb.AppendLine("mkdir -p $dir && : > $Remote.b64")
+    [void]$sb.AppendLine("mkdir -p $dir")
+    [void]$sb.AppendLine("cat > $stage <<'RPB64EOF'")
     for ($i = 0; $i -lt $b64.Length; $i += $ChunkSize) {
         $n = [Math]::Min($ChunkSize, $b64.Length - $i)
-        [void]$sb.AppendLine("printf %s '" + $b64.Substring($i, $n) + "' >> $Remote.b64")
+        [void]$sb.AppendLine($b64.Substring($i, $n))
     }
-    [void]$sb.AppendLine("base64 -d $Remote.b64 > $Remote && rm -f $Remote.b64")
-    [void]$sb.AppendLine("echo '<<<RPMARK-START>>>'; wc -c $Remote; md5sum $Remote; echo '<<<RPMARK-END>>>'")
+    [void]$sb.AppendLine("RPB64EOF")
+    # Mention the destination path once, in a cd, then work on the bare
+    # basename. Repeating a long path invites the character duplication these
+    # pods show, and a mistyped path silently writes the decode somewhere else.
+    $base = [System.IO.Path]::GetFileName($Remote)
+    [void]$sb.AppendLine("cd $dir || exit 9")
+    [void]$sb.AppendLine("base64 -d $stage > $base && rm -f $stage")
+    [void]$sb.AppendLine("echo '<<<RPMARK-START>>>'; wc -c $base; md5sum $base; echo '<<<RPMARK-END>>>'")
     [void]$sb.AppendLine("exit")
 
-    $out = Invoke-RpRaw -Stdin $sb.ToString()
-    $res = Get-RpBetween -Text $out
     $localMd5 = (Get-FileHash -Algorithm MD5 $Local).Hash.ToLower()
-    if ($res -notmatch $localMd5) {
-        Write-Output "WARN md5 mismatch. local=$localMd5"
-        Write-Output $res
+    for ($try = 1; $try -le $Retries; $try++) {
+        $res = Get-RpBetween -Text (Invoke-RpRaw -Stdin $sb.ToString())
+        if ($res -match $localMd5) {
+            Write-Output "OK $Remote ($($bytes.Length) bytes, md5 $localMd5)"
+            return
+        }
+        Write-Output "  transfer attempt $try/$Retries did not verify, retrying"
+        Start-Sleep -Seconds 2
     }
-    else {
-        Write-Output "OK $Remote ($($bytes.Length) bytes, md5 $localMd5)"
-    }
+    Write-Output "FAILED $Remote after $Retries attempts (local md5 $localMd5)"
 }
 
 function Invoke-Rp {
