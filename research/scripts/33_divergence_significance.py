@@ -11,16 +11,15 @@ Because several features are tested at once, Holm-Bonferroni correction is
 applied and both raw and corrected p-values are reported.
 
 It also fixes a provenance error. Earlier scripts described their specificity
-features as "the criteria the guideline lists". The official document
-(`data/AI_CUP_2026_VeriPromiseESG_Submission_Guidelines.pdf`) defines the label
-in six characters -- "佐證明確，具體可信", evidence that is definite and credibly
-concrete -- and enumerates nothing. The seven patterns are this project's own
-operationalisation of "concrete", derived from what correlates with the label in
-the training data, and are named as such here.
+features as "the criteria the guideline lists". No released document contains
+that list. The seven patterns are this project's own operationalisation of
+"concrete", derived from what correlates with the label in the training data,
+and are named as such here.
 
-That makes the under-determination point stronger rather than weaker: the
-guideline supplies no operational criterion at all, so any model given only the
-guideline text has nothing to apply.
+Script 34 follows the error to what the released documents do say, and measures
+which criterion -- theirs or ours -- better explains the models and which better
+explains the annotators. Read that one for the full account; this script is
+kept for the significance testing.
 
 CPU only; reads the cached predictions from script 26.
 """
@@ -140,17 +139,16 @@ def main():
     A("Earlier scripts called these \"the criteria the guideline lists\". That "
       "was wrong, and the error is worth stating plainly.")
     A("")
-    A("The official submission guidelines define the label in six characters -- "
-      "*evidence definite, concretely credible* -- and give no enumeration of "
-      "what counts as concrete. The seven patterns below are **this project's "
-      "own operationalisation**, arrived at by observing what correlates with "
-      "the label in the training data, not by transcribing a published rule.")
+    A("No released document contains that list. The seven patterns below are "
+      "**this project's own operationalisation**, arrived at by observing what "
+      "correlates with the label in the training data, not by transcribing a "
+      "published rule. What follows is therefore a comparison against *our* "
+      "notion of concreteness, and is labelled as such throughout.")
     A("")
-    A("This makes the under-determination argument stronger, not weaker: the "
-      "guideline supplies **no operational criterion at all**, so a model given "
-      "only the guideline text has nothing to apply. What follows is therefore "
-      "a comparison against *our* notion of concreteness, and is labelled as "
-      "such throughout.")
+    A("`research/scripts/34_guideline_criteria_test.py` follows the error "
+      "through: it sets out what the two released documents actually say, and "
+      "measures whether the criteria they state, or the ones used here, better "
+      "explain the models and the annotators. That is the fuller account.")
     A("")
 
     A("## Binary features: presence in the paragraph")
