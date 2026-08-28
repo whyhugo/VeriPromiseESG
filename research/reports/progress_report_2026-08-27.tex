@@ -1,0 +1,1262 @@
+% ---------------------------------------------------------------------------
+% ESG 永續承諾驗證：研究進度報告（第二版）
+% 以 XeLaTeX 編譯：  xelatex progress_report_2026-08-27.tex
+% ---------------------------------------------------------------------------
+\documentclass[11pt,a4paper]{ctexart}
+
+\usepackage{geometry}
+\geometry{margin=2.4cm}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{amsmath}
+\usepackage[table]{xcolor}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true, linkcolor=black, urlcolor=blue, citecolor=black}
+\usepackage{fancyhdr}
+\usepackage{tcolorbox}
+\usepackage[normalem]{ulem}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{ESG 永續承諾驗證：研究進度報告（第二版）}
+\fancyhead[R]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+\newcommand{\fn}[1]{\texttt{#1}}
+
+\title{\textbf{ESG 永續承諾驗證：研究進度報告}\\[0.3em]\large 第二版}
+\author{AI CUP 2026 VeriPromiseESG 競賽後續學術研究}
+\date{2026 年 8 月 27 日\quad（前版：2026 年 8 月 25 日）}
+
+\begin{document}
+\maketitle
+
+\begin{tcolorbox}[colback=gray!8, colframe=gray!50, title=閱讀說明]
+\textbf{給初次閱讀者}：本報告不預設讀者了解此競賽、我們的參賽系統或任何先前討論。
+所有專業術語在首次出現時定義，第 \ref{sec:glossary} 節另有術語表。
+
+\medskip
+\textbf{給讀過第一版的人}：第 \ref{sec:diff} 節列出這一版\textbf{推翻或修正}了哪些
+前版結論。前版的兩項主要發現有一項無法複現，請以本版為準。
+\end{tcolorbox}
+
+\noindent\textbf{預定投稿}：NTCIR-19 AI CUP -- VeriPromise ESG Track
+（2026 年 12 月 8--10 日，東京 NII）
+
+\tableofcontents
+\newpage
+
+% ===========================================================================
+\section{背景：這個競賽在解什麼問題}
+
+\subsection{現實問題}
+
+上市公司每年出版「永續報告書」（ESG 報告書），說明自己在環境（Environmental）、
+社會（Social）、公司治理（Governance）三方面的作為。這類報告書篇幅動輒數百頁，其中
+充滿各種\textbf{承諾}——例如「我們將於 2030 年達成碳中和」。
+
+問題在於這些承諾\textbf{很難查證}。有些附有具體佐證，有些只有空泛宣示。後者正是
+「\textbf{漂綠}」（greenwashing）。人工逐段審閱數百家公司的報告書不可行。
+
+\subsection{競賽把問題形式化成四個子任務}
+
+給定報告書中的\textbf{一個段落}，系統需同時判斷：
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}clp{3.9cm}p{5.4cm}@{}}
+\toprule
+編號 & 子任務 & 中文說明 & 可能的答案 \\
+\midrule
+\textcircled{1} & \fn{promise\_status} & 有沒有包含一個 ESG 承諾？ & Yes / No \\
+\textcircled{2} & \fn{evidence\_status} & 承諾有沒有具體證據支持？ & Yes / No / N/A \\
+\textcircled{3} & \fn{evidence\_quality} & 證據的品質如何？ & Clear / Not Clear / Misleading / N/A \\
+\textcircled{4} & \fn{verification\_timeline} & 何時可以被驗證？ & already / within\_2\_years / between\_2\_and\_5\_years / more\_than\_5\_years / N/A \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{子任務\textcircled{3}的三個等級}（引自官方標註準則）
+\begin{itemize}[leftmargin=2em, itemsep=1pt]
+  \item \textbf{Clear}：資訊充分且具體，足以支持該承諾。
+  \item \textbf{Not Clear}：資訊缺漏，內容只能部分理解，或流於表面。
+  \item \textbf{Misleading}：該證據\textbf{無論真假}，與所主張的承諾之間沒有清楚
+        關聯，看起來像是在轉移注意力。
+\end{itemize}
+
+\subsection{官方評分方式}
+
+\[
+\text{總分} = 0.20\,\mathrm{F1}(\textcircled{1}) + 0.30\,\mathrm{F1}(\textcircled{2})
++ 0.35\,\mathrm{F1}(\textcircled{3}) + 0.15\,\mathrm{F1}(\textcircled{4})
+\]
+
+其中 F1 為 \textbf{macro-F1}：先算每個類別的 F1，再取\textbf{未加權平均}——每個
+類別同等權重，不管該類別有幾筆資料。
+
+\begin{tcolorbox}[colback=yellow!8, colframe=orange!60, title=本版重要更新]
+第 \ref{sec:framework} 節說明為何本研究\textbf{不再以此公式作為評估標準}，以及改用
+什麼。同時第 \ref{sec:diff} 節記錄，我們原先對這個權重的批判其實\textbf{過度了}。
+\end{tcolorbox}
+
+\subsection{我們的參賽成績}
+
+隊伍代號 TEAM\_10671，採用三種預訓練語言模型 $\times$ 五折交叉驗證的集成，取得
+\textbf{私榜第一名}：
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+系統 & 總分 & \textcircled{1} & \textcircled{2} & \textcircled{3} & \textcircled{4} \\
+\midrule
+官方基線（LLM，無檢索） & 0.4956 & 0.7298 & 0.5969 & 0.3549 & 0.3090 \\
+官方基線（LLM + 檢索）  & 0.5111 & 0.7152 & 0.5958 & 0.3599 & 0.4227 \\
+\textbf{我們的系統}      & \textbf{0.6384} & 0.8191 & 0.7132 & 0.4642 & 0.6545 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ===========================================================================
+\section{研究目標}
+
+投稿審查標準明訂：著重學術性、\textbf{不能只是競賽系統報告}、必須明確使用並分析
+競賽資料集。四個子任務難度差異極大——\textcircled{3}最難（0.4642）卻權重最高
+（0.35）。核心研究問題：
+
+\begin{tcolorbox}[colback=blue!5, colframe=blue!50]
+\textbf{子任務\textcircled{3}（證據品質判斷）為什麼這麼難？困難的來源是什麼？
+能不能改善？}
+
+\medskip
+\textbf{本版新增}：既然\textcircled{3}在九種介入下都無法改善，那麼\textbf{其他
+子任務}還有多少空間？以及，我們能否說明清楚\textbf{\textcircled{3}為什麼不能被
+改善}，讓它成為一項發現而非一句辯解？
+\end{tcolorbox}
+
+% ===========================================================================
+\section{資料集}
+
+VeriPromiseESG4K，4{,}000 個段落，來自 49 家台灣上市公司的 2024 年永續報告書（名義
+50 家；股票代號 3231 以 \texttt{Wistron} 與 \texttt{wistron} 兩種大小寫出現）。
+切分為訓練 1{,}000 / 驗證 1{,}000 / 測試 2{,}000。候選段落由 GPT-5 Pro 預先篩選，
+\textbf{標籤全部由人工標註}：21 位標註者分 7 組，多人獨立標註、逐輪計算一致性。
+
+\subsection{標註一致性（Krippendorff's Alpha）}
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lr@{}}
+\toprule
+子任務 & Alpha \\
+\midrule
+\textcircled{1} \fn{promise\_status}        & 0.977 \\
+\textcircled{2} \fn{evidence\_status}       & 0.962 \\
+\textcircled{3} \fn{evidence\_quality}      & \textbf{0.940} \\
+\textcircled{4} \fn{verification\_timeline} & 0.955 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{這排除了「標籤太主觀」這個解釋}——受訓的人類在\textcircled{3}上高度一致，
+模型卻只有 0.4642。困難不在標籤。
+
+\subsection{跨度標註（\fn{promise\_string} / \fn{evidence\_string}）的實際結構}
+\label{sec:spans}
+
+資料集除了四個分類標籤，還提供兩個\textbf{文字跨度}欄位，標出段落中「承諾是哪一句」
+與「證據是哪一句」。三個檔案的欄位完全一致：
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+切分 & 總列數 & \fn{promise\_string} 非空 & \fn{evidence\_string} 非空 \\
+\midrule
+訓練 & 1{,}000 & 814 & 677 \\
+驗證 & 1{,}000 & 813 & 668 \\
+測試 & 2{,}000 & 1{,}625 & 1{,}335 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{覆蓋率是 100\%}：凡 \fn{promise\_status=Yes} 的列，\fn{promise\_string} 必定
+有值；\fn{evidence\_status=Yes} 者同理。
+
+\textbf{這兩欄不是單一連續片段。} 約 17--28\% 的值包含全形分隔符「｜」，用來串接段落
+中\textbf{數個不相鄰}的片段，且片段尾端常帶版面殘留的頁碼數字。直接把整欄當成一個
+字串時，只有 72\% 是段落的逐字子字串；\textbf{依分隔符切開並去除尾端數字後，
+92--98\% 的片段都是逐字子字串}。片段數分布為：1 段 590 筆、2 段 164 筆、3 段 35 筆，
+最多的一筆有 26 段。\fn{promise\_string} 中位數 50 字，段落中位數 191 字，
+\textbf{約佔段落四分之一}。
+
+\begin{tcolorbox}[colback=yellow!8, colframe=orange!60, title=這個結構影響了假設 B]
+假設 B（把跨度當作輸入過濾）在實作時把整個 \fn{promise\_string} 當成單一字串餵給
+模型，\textbf{其中含有分隔符與殘留頁碼}。也就是說那個實驗餵進去的並不是乾淨的承諾
+句。第 \ref{sec:spanredo} 節記錄了以清理後的跨度重做的結果。
+\end{tcolorbox}
+
+\subsection{子任務\textcircled{3}的標籤分布（測試集）}
+
+Clear 1{,}106（55.3\%）、N/A 665（33.3\%）、Not Clear 226（11.3\%）、
+\textbf{Misleading 3（0.15\%）}。\fn{Misleading} 在整個 4{,}000 段資料集中
+\textbf{只有 5 筆}（訓練 1、驗證 1、測試 3）。
+
+% ===========================================================================
+\section{診斷：瓶頸的精確位置}
+
+\subsection{逐類別拆解（子任務\textcircled{3}）}
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+類別 & 正解筆數 & 精確率 & 召回率 & F1 \\
+\midrule
+Clear      & 1{,}106 & 0.7857 & 0.8354 & 0.8098 \\
+N/A        & 665     & 0.7818 & 0.6195 & 0.6913 \\
+\rowcolor{yellow!15}
+Not Clear  & 226     & 0.3131 & 0.4115 & \textbf{0.3556} \\
+\rowcolor{red!10}
+\textbf{Misleading} & \textbf{3} & 0.0000 & 0.0000 & \textbf{0.0000} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+系統在 2{,}000 筆中\textbf{一次都沒有輸出 \fn{Misleading}}。
+
+\subsection{空間在哪裡（oracle 拆解）}
+\label{sec:headroom}
+
+每一列把系統的\textbf{一個元件}換成正確答案、其餘不動：
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lrr@{}}
+\toprule
+系統 & \textcircled{3} macro-F1 & 相對現況 \\
+\midrule
+現況 & 0.4642 & --- \\
++ 完美的閘門（\textcircled{2}由正解提供） & 0.5796 & \textbf{+0.1155} \\
++ 完美的 Misleading（3 筆直接給對） & 0.7145 & \textbf{+0.2503} \\
++ 完美的判斷（全對） & 0.8597 & +0.3955 \\
+完美 & 1.0000 & +0.5358 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+完美判斷可得的 +0.3955 之中，\textbf{+0.2503 來自那 3 筆 Misleading}，剩下 +0.1452
+才是全部 1{,}332 筆 Clear / Not Clear 判斷的總和。\textbf{最大的單一槓桿，是那個
+沒有任何方法能偵測的類別。}
+
+\subsection{閘門（子任務\textcircled{2}）的失效方向}
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+正解 $\backslash$ 預測 & N/A & No & Yes & 合計 \\
+\midrule
+\textbf{N/A} & 245 & 22  & 108 & 375 \\
+\textbf{No}  & 17  & 149 & \textbf{124} & 290 \\
+\textbf{Yes} & 63  & 63  & 1209 & 1335 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+閘門只往一個方向失效：\textbf{232 筆在沒有證據時被判為 \fn{Yes}}。\fn{No} 的召回率
+只有 \textbf{0.514}。這些列接下來都會拿到不可能正確的 Clear / Not Clear 標籤。
+
+\subsection{稀有不是病因}
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}llrrr@{}}
+\toprule
+子任務 & 最稀有類別 & 測試 n & 訓練 n & 該類別 F1 \\
+\midrule
+\textcircled{1} & \fn{No} & 375 & 373 & 0.7024 \\
+\textcircled{2} & \fn{No} & 290 & 282 & 0.5687 \\
+\rowcolor{red!10}
+\textcircled{3} & \fn{Misleading} & \textbf{3} & \textbf{2} & \textbf{0.0000} \\
+\textcircled{4} & \fn{within\_2\_years} & 44 & 34 & 0.6465 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\fn{within\_2\_years} 只有 \textbf{34 筆}訓練資料，模型仍達 F1 0.6465。
+\textbf{可學習的門檻落在 2 到 34 之間，而只有 \fn{Misleading} 掉在下面。}
+
+% ===========================================================================
+\section{獨立的評估框架（本版新增）}
+\label{sec:framework}
+
+\subsection{為什麼需要}
+
+官方公式的權重是\textbf{競賽設計選擇}，不是測量工具。我們檢視了 NTCIR-18 AI CUP
+特別場次的三篇論文：
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}p{5.6cm}p{8.2cm}@{}}
+\toprule
+論文 & 使用的評估指標 \\
+\midrule
+KAP: MLLM-assisted OCR Text Enhancement & MRR、AP@1，另有獨立的 Evaluation Methodology 與消融設計 \\
+Ensemble-Based Multi-Specialty Retrieval & Accuracy、F1、Precision，含非監督與監督兩種集成對照 \\
+Translation or Multilingual Retrieval? & MRR@10、NDCG@10、Recall@100，含明確基線與近似上界、配對 $t$ 檢定、錯誤分析、執行時間分析 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{三篇都把競賽資料集當作素材，然後為自己的研究問題定義領域標準指標。沒有一篇
+把排行榜分數當成論文的證據。}
+
+\subsection{本研究採用的框架}
+
+\begin{enumerate}[leftmargin=2em, itemsep=1pt]
+  \item 四個子任務分開報告，預設不合併成單一加權數字
+  \item 在極度不平衡下仍合理的指標：balanced accuracy、MCC、Cohen's kappa
+  \item \textbf{整筆完全正確率}：四個欄位全部答對的段落比例——稽核人員真正需要的
+        量，且天然懲罰結構不一致
+  \item \textbf{條件式評估}：只在「正解使其適用」的列上評分，分開閘門錯誤與判斷錯誤
+  \item \textbf{人類天花板正規化}：預測與正解的 Alpha $\div$ 標註者間的 Alpha
+  \item Bootstrap 信賴區間
+  \item 加權敏感度分析
+\end{enumerate}
+
+\subsection{結果一：排名不穩定，而我們當初選錯了提交}
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lrrrrrr@{}}
+\toprule
+系統 & 競賽加權 & 均勻 macro-F1 & 均勻 MCC & 支持度加權 F1 & 整筆正確 & 天花板比 \\
+\midrule
+\fn{ens\_3way\_tuned} & \textbf{0.6384} & 0.6628 & 0.5628 & 0.7627 & \textbf{0.4880} & 0.583 \\
+\fn{ens\_3way\_raw}   & 0.6362 & 0.6600 & \textbf{0.5680} & \textbf{0.7674} & \textbf{0.5130} & \textbf{0.585} \\
+\fn{ens\_rob\_mac\_tuned} & 0.6342 & 0.6575 & 0.5580 & 0.7626 & 0.5065 & 0.577 \\
+\fn{roberta\_large\_cv5} & 0.6267 & 0.6517 & 0.5497 & 0.7583 & 0.5005 & 0.567 \\
+\fn{roberta\_large\_cv5\_tuned} & 0.6136 & 0.6402 & 0.5479 & 0.7500 & 0.4910 & 0.567 \\
+\textit{參考：全猜多數} & 0.2484 & 0.2505 & 0.0000 & 0.4652 & 0.2920 & $-0.190$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{我們送出的 \fn{ens\_3way\_tuned} 在競賽公式下第一，在整筆完全正確下最後}。
+兩者唯一的差別是逐類別門檻調校——買到競賽總分 $+0.0022$，付出整筆正確率
+$\mathbf{-0.0250}$。\textbf{實際使用這套系統的稽核人員會偏好未調校的版本。}
+
+\subsection{結果二：換算到人類天花板，\textcircled{3}沒有特別糟}
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+子任務 & 與正解的 Alpha & 標註者的 Alpha & 比值 & 類別數 \\
+\midrule
+\textcircled{1} & 0.6384 & 0.977 & \textbf{0.653} & 2 \\
+\textcircled{2} & 0.5783 & 0.962 & \textbf{0.601} & 3 \\
+\textcircled{3} & 0.4980 & 0.940 & \textbf{0.530} & 4 \\
+\textcircled{4} & 0.5226 & 0.955 & \textbf{0.547} & 5 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+競賽 macro-F1 下\textcircled{3}（0.4642）比\textcircled{4}（0.6545）差 0.19；換算成
+相對人類一致程度，\textbf{兩者幾乎一樣：0.530 對 0.547}。競賽指標\textbf{誇大了
+\textcircled{3}的獨特困難}。同時\textbf{沒有任何子任務達到人類天花板的三分之二}。
+
+\subsection{結果三：三筆資料的槓桿，不需提到競賽權重}
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+彙總方式 & 含 Misleading & 排除 Misleading & 差異 \\
+\midrule
+macro-F1 & 0.4642 & 0.6189 & \textbf{+0.1547} \\
+支持度加權 F1 & 0.7179 & 0.7189 & \textbf{+0.0011} \\
+balanced accuracy & 0.4666 & 0.6222 & +0.1555 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{相差約 140 倍。} 完整的論證是：\textbf{當一個類別在 2{,}000 筆中只有 3 筆
+時，macro 平均不是可辯護的彙總方式}。
+
+\begin{tcolorbox}[colback=gray!8, colframe=gray!55]
+\textbf{本報告從此處起不再引用競賽的加權公式作為論據。} 本研究是以 VeriPromiseESG4K
+為素材的獨立學術研究，競賽分數只在第 1.4 節作為系統來歷的背景交代，以及在方法比較時
+作為一個可對照的既有數字。所有關於「這個類別有多大影響」的主張，都改用上表這種與
+權重無關的方式陳述。
+\end{tcolorbox}
+
+\subsection{結果四：條件式評估揭露標題數字有多少是閘門}
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+子任務 & 適用列數 & 條件式 macro-F1 & 全部列 & 輸出不可能標籤的列數 \\
+\midrule
+\textcircled{1} & 2000 & 0.8191 & 0.8191 & 0 \\
+\textcircled{2} & 1625 & \textbf{0.7500} & 0.7132 & 80 \\
+\textcircled{3} & 1335 & \textbf{0.4339} & 0.4642 & 115 \\
+\textcircled{4} & 1625 & \textbf{0.6710} & 0.6545 & 59 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textcircled{2}和\textcircled{4}在條件式下\textbf{上升}——無條件分數有一大部分只是
+正確傳遞「這段沒有承諾」。\textcircled{3}則\textbf{下降}：對它而言 \fn{N/A} 那些列
+反而是簡單的部分，\textbf{判斷本身比標題數字顯示的更難}。最後一欄取代了我們先前
+自創的「結構一致率」，換成可直接解讀的量。
+
+% ===========================================================================
+\section{假設與實驗}
+
+\subsection*{假設 A：困難來自標註雜訊 $\to$ 排除}
+Alpha $=0.940$，模型 0.4642。人類做得到、模型做不到。
+
+\subsection*{假設 B：應「先定位、再判斷」（使用跨度標註）$\to$ 不成立}
+
+資料集為每個正例標出承諾與證據的跨度，覆蓋率 100\%，但所有現有系統都沒有使用。
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}clrrl@{}}
+\toprule
+條件 & 輸入 & macro-F1 & 與 A 的差距 & 95\% 信賴區間 \\
+\midrule
+A & 完整段落（現行）      & 0.3825 & --- & --- \\
+B & 只給正解的證據跨度    & 0.3905 & $+0.0080$ & $[-0.016,+0.032]$ \\
+C & 承諾 + 證據跨度       & 0.3915 & $+0.0089$ & $[-0.009,+0.027]$ \\
+D & \textbf{對照}：等長隨機片段 & 0.3755 & $-0.0071$ & $[-0.033,+0.019]$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+改善僅 $+0.008$ 且信賴區間跨零。證據跨度的中位數長度是整段的 \textbf{52.2\%}。
+\textit{限制}：此實驗用傳統統計模型，在 \fn{Not Clear} 上只有 0.2394，明顯弱於
+神經網路（0.4296），故不能完全排除。
+
+\paragraph{假設 B 以清理後的跨度重做}
+\label{sec:spanredo}
+
+先前的實作把跨度欄位當成單一字串使用（見第 \ref{sec:spans} 節）。以同一模型、同一
+切分、同一隨機種子，僅改為依分隔符切開並去除尾端數字後重跑：
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lrrl@{}}
+\toprule
+條件 & macro-F1 & 與 A 的差距 & bootstrap 95\% 信賴區間 \\
+\midrule
+A\ \ 完整段落 & 0.3825 & --- & --- \\
+B\ \ 清理後的證據跨度 & 0.3930 & $+0.0105$ & $[-0.0134, +0.0358]$ \\
+C\ \ 清理後的承諾＋證據 & 0.3860 & $+0.0035$ & $[-0.0117, +0.0190]$ \\
+D\ \ 隨機對照 & 0.3655 & $-0.0170$ & $[-0.0405, +0.0081]$ \\
+E\ \ \textbf{未清理}（先前實際使用的輸入） & 0.3905 & $+0.0080$ & $[-0.0159, +0.0319]$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{清理只讓條件 B 動了 $+0.0025$}（0.3930 對 0.3905）。資料處理瑕疵確實存在，
+但\textbf{不足以解釋原本的負面結果}——假設 B 失敗的原因不是輸入髒。信賴區間仍跨越
+零，結論維持不變。
+
+\subsection*{假設 C：跨度的價值在「關係」$\to$ 推翻}
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+分數 & Clear & Not Clear & Misleading & AUC \\
+\midrule
+bge-m3 餘弦相似度 & 0.6441 & 0.6583 & 0.6341 & \textbf{0.4671} \\
+交叉編碼器分數 & $-1.3269$ & $-1.1670$ & $-1.1693$ & \textbf{0.5095} \\
+證據長度 $\div$ 承諾長度 & 3.72 & 2.11 & 1.62 & \textbf{0.6542} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+兩個語意模型都在亂猜水準，雙塔編碼器甚至\textbf{低於 0.5}——代表 \fn{Not Clear} 的
+證據跟承諾\textbf{更相似}，方向與假設相反。五筆 \fn{Misleading} 的百分位是
+54.9 / 10.8 / 72.8 / 8.5 / \textbf{90.7}。
+
+\begin{tcolorbox}[colback=green!5, colframe=green!45, title=存活的發現]
+\fn{證據長度 $\div$ 承諾長度} AUC 0.6542，且詞彙版（0.6535）與語意版（0.6542）幾乎
+相同，代表它是\textbf{長度效應}而非語意效應。運作中的構念是「\textbf{鋪陳程度}」
+而非「關聯度」：Clear 的證據比承諾長得多且帶進新內容；Not Clear 的證據短，且只是
+換句話說重複承諾。
+\end{tcolorbox}
+
+\subsection*{假設 D：模型沒學到準則明列的判準 $\to$ 關聯強，但不是瓶頸}
+
+依準則原文寫成 12 條正規表示式加 2 個長度特徵。\fn{has\_digit} 的 Cramér's V 為
+\textbf{0.348}（有數字時 $P(\text{Clear})=0.934$，無數字時 0.666；基準 0.832）。
+在二元分類上 14 條規則得 0.6518，三模型集成得 0.6602，\textbf{差距僅 0.0084}。
+\textit{此比較後被假設 E 修正。}
+
+\subsection*{假設 E：把子任務\textcircled{3}獨立訓練 $\to$ 隔離成立，端到端不成立}
+
+在「正解已知有證據」的前提下，單一專用模型 0.7104 超越整套集成 0.6602。
+\textbf{但端到端驗證增益消失}：總分 $0.6384 \to 0.6368$。\fn{N/A} 上升
+（$0.6913 \to 0.7075$），\fn{Not Clear} 下降（$0.3556 \to 0.3223$）。
+\textbf{原先的量測是在解一個較簡單的問題。}
+
+\subsection*{假設 F：強制邏輯一致會改善結果 $\to$ 多任務架構上成立，不可推廣}
+
+在多任務架構上，同一組權重下投影使總分從 0.6015 掉到 0.5885（$\mathbf{-0.0130}$）。
+機制：\textcircled{2}正確的 1{,}603 筆上強制一致有幫助（$0.848 \to 0.867$），
+\textcircled{2}錯誤的 397 筆上有害（$0.176 \to 0.121$）；原始準確率幾乎抵銷，但
+macro-F1 不是準確率——強制一致把質量推向 \fn{N/A}，代價是 \fn{Not Clear} 的召回。
+
+\begin{tcolorbox}[colback=red!5, colframe=red!50, title=本版修正]
+這個效應在\textbf{專用模型架構上不複現}：同樣的投影代價是 $+0.0013$（1 骨幹）與
+$+0.0003$（3 骨幹）——零，方向還相反。前版宣稱的「三次獨立量測」\textbf{三次都跑在
+多任務或串接架構上}。正確的說法是：\textbf{這是多任務架構的性質，不是任務或指標的
+性質。}
+
+\medskip
+機制：多任務共用編碼器，四個頭高度相關，違反邏輯通常代表整列表徵都錯了，投影只是
+傳播錯誤；四個獨立模型各自失準，違反邏輯較常是「一個頭錯、三個對」，那正是投影修得
+好的情況。
+\end{tcolorbox}
+
+\subsection*{假設 G：\fn{Misleading} 可用定義偵測 $\to$ 完全失敗}
+
+Qwen3-8B，提示詞寫入準則原文定義，不給範例：
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+類別 & 正解筆數 & 預測筆數 & 精確率 & 召回率 & F1 \\
+\midrule
+Clear     & 2{,}224 & 1{,}482 & 0.895 & 0.596 & 0.716 \\
+Not Clear & 451     & 1{,}191 & 0.247 & 0.652 & 0.358 \\
+\rowcolor{red!10}
+\textbf{Misleading} & \textbf{5} & \textbf{7} & \textbf{0.000} & \textbf{0.000} & \textbf{0.000} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+五筆\textbf{一筆都沒抓到}。模型確實輸出了 \fn{Misleading} 七次，所以不是拒絕使用
+該標籤，而是從未與標註者一致。
+
+\subsection*{假設 H：三個效應可加 $\to$ 不成立（本版新增）}
+
+前版外推「專用 + 三骨幹 + 不強制一致 $\approx 0.649$」。實測：
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lrrrrrr@{}}
+\toprule
+系統 & 總分 & \textcircled{1} & \textcircled{2} & \textcircled{3} & \textcircled{4} & SCR \\
+\midrule
+競賽集成（多任務，3 骨幹） & \textbf{0.6384} & 0.8191 & 0.7132 & 0.4642 & 0.6545 & 94.2\% \\
+多任務，1 骨幹，自由 & 0.6015 & 0.8078 & 0.6801 & 0.4472 & 0.5291 & 86.0\% \\
+多任務，1 骨幹，投影 & 0.5885 & 0.8078 & 0.6822 & 0.4091 & 0.5273 & 100\% \\
+專用，1 骨幹，自由 & 0.6015 & 0.8111 & 0.6764 & 0.4246 & 0.5848 & 75.7\% \\
+專用，1 骨幹，投影 & 0.6028 & 0.8111 & 0.6853 & 0.4133 & 0.6020 & 100\% \\
+專用，3 骨幹，自由 & 0.6157 & 0.8123 & 0.6952 & 0.4414 & 0.6011 & 79.5\% \\
+專用，3 骨幹，投影 & \textbf{0.6160} & 0.8123 & 0.7037 & 0.4332 & 0.6054 & 100\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{外推目標 0.649，實測 0.6157，差 0.033。} 專用 vs 多任務（1 骨幹、自由）
+\textbf{完全相同}（0.6015 對 0.6015）；唯一動的是\textcircled{4}：$0.5291 \to 0.5848$
+（\textbf{+0.0557}）。集成（1$\to$3 骨幹）\textbf{+0.0142}，不是外推的 +0.03。
+
+\subsection*{假設 I：LLM 資料擴增能救稀有類別 $\to$ 有害（本版新增）}
+
+Qwen3-8B \textbf{引導式最小編輯}：給一段相鄰類別的真實段落，要求依準則做最小改動把
+標籤翻過去，每類 300 筆。所有評估都在真實測試集上。
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+\textcircled{3}的訓練資料 & $n$ & macro-F1 & Clear & Not Clear & Misleading \\
+\midrule
+只有真實資料 & 2000 & \textbf{0.4350} & 0.7641 & 0.3407 & 0.0000 \\
++ 合成 Not Clear & 2300 & 0.3994 & 0.6720 & 0.2993 & 0.0000 \\
++ 合成 Misleading & 2300 & 0.4039 & 0.6379 & 0.3610 & 0.0000 \\
++ 兩者 & 2600 & \textbf{0.3371} & \textbf{0.3946} & 0.2865 & 0.0000 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+\textcircled{2}的訓練資料 & macro-F1 & \fn{No} 的 F1 & \fn{No} 的召回 \\
+\midrule
+只有真實資料 & \textbf{0.6776} & 0.5498 & 0.6759 \\
++ 合成 No & 0.6188 & 0.4533 & \textbf{0.7621} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{300 筆合成 Misleading 對真實的 3 筆產生的召回是零。} 最有資訊量的是
+\textcircled{2}：召回上升而 F1 下降——合成資料\textbf{成功教會模型更常說 \fn{No}，
+但它說在錯的列上}。
+
+\subsection*{假設 J：\fn{evidence\_status = No} 的空間可用決策規則取得 $\to$ 不可}
+
+機率完全固定，只調 \fn{No} 的先驗：
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}rrrrr@{}}
+\toprule
+\fn{No} 的先驗 & \fn{No} 召回 & \textcircled{2} macro-F1 & 競賽分數 & 整筆正確 \\
+\midrule
+1.0 & 0.6414 & \textbf{0.6734} & 0.6018 & 0.3605 \\
+2.0 & 0.7552 & 0.6617 & 0.5983 & 0.3480 \\
+4.0 & 0.8448 & 0.6269 & 0.5879 & 0.3245 \\
+6.0 & 0.8897 & 0.5995 & 0.5796 & 0.3070 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{兩個方向都單調，沒有內部最佳解。這跟假設 I 的形狀完全一樣。}
+
+\begin{tcolorbox}[colback=blue!5, colframe=blue!55]
+兩個彼此無關的介入（給更多資料、降低門檻）在同一位置產生同樣的交換：限制住這些
+稀有類別的，\textbf{既不是訓練集大小，也不是決策邊界的位置，而是模型對這些列的
+排序能力}。
+\end{tcolorbox}
+
+\subsection*{假設 K：4 epochs 訓練不足 $\to$ 否（本版新增）}
+
+跑 15 epochs 並逐 epoch 評估驗證折：
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lrrrrrrr@{}}
+\toprule
+子任務 & ep1 & ep2 & \textbf{ep3} & ep4 & ep8 & ep15 & 從 ep4 到最佳 \\
+\midrule
+\textcircled{1} & 0.562 & 0.769 & 0.782 & 0.788 & 0.784 & 0.786 & +0.0088 \\
+\textcircled{2} & 0.467 & 0.602 & 0.657 & 0.662 & 0.682 & 0.688 & \textbf{+0.0277} \\
+\rowcolor{yellow!15}
+\textcircled{3} & 0.251 & 0.448 & \textbf{0.501} & \textbf{0.501} & 0.503 & 0.505 & \textbf{+0.0049} \\
+\textcircled{4} & 0.249 & 0.448 & 0.555 & 0.588 & 0.615 & 0.625 & \textbf{+0.0383} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{\textcircled{3}在第 3 個 epoch 到達 0.501，第 15 個 epoch 是 0.505——多訓練
+12 個 epoch 只換到 0.0049。} 同期\textcircled{4}漲 0.0383、\textcircled{2}漲 0.0277。
+\textbf{四個子任務有三個在 epoch 4 時還受限於最佳化；\textcircled{3}從 epoch 3 之後
+完全不受最佳化限制。}
+
+訓練預算對總分只值 \textbf{+0.0039}。逐子任務挑最佳 epoch（0.6143）並沒有比跑滿
+15 epochs（0.6154）好——epoch 8 之後曲線太平，挑選等於擬合驗證雜訊。
+
+\textit{瑕疵}：上表的「4 epochs」是 15-epoch OneCycle 排程的第 4 個檢查點，學習率仍
+接近峰值，與假設 H 中完整退火的 4-epoch 執行\textbf{不是同一個模型，不能相減}。
+本表\textbf{內部}的比較共用同一排程，有效。
+
+\subsection*{假設 L：把大型語言模型加入集成投票 $\to$ 無效（本版新增）}
+
+\textbf{動機}：集成是本研究唯一穩定的增益來源（三骨幹比單骨幹 $+0.0142$）。但那三個
+骨幹都是 3 億參數級、同一資料、同一目標訓練出來的 BERT 家族模型，\textbf{錯誤模式
+高度相關}。一個 80--320 億參數的生成式模型錯得不一樣，而「錯得不一樣」正是投票需要
+的性質。
+
+\textbf{評分方式}：把每個子任務寫成帶字母選項的單選題，提示詞結尾停在「答案：」，
+\textbf{只讀那一個位置的 logits}、限制在選項字母上做 softmax。每個（段落, 子任務）
+只要一次前向傳播，得到校準過的機率分布，可直接進加權投票。
+
+\textbf{候選模型}（全部以 bitsandbytes NF4 4-bit 統一量化，另加一個 bf16 對照）：
+Qwen3-8B（bf16 與 NF4）、Qwen3-14B、Qwen3-32B、Gemma-3-12B-it、Gemma-3-27B-it、
+DeepSeek-R1-Distill-Qwen-32B。
+
+\textbf{評估協定}：在 train+val 的 601 筆分層子樣本上評分（測試集完全不碰）。混合為
+$(1-w)\times$ 編碼器折外機率 $+\ w\times$ 語言模型機率。\textbf{權重在半數子樣本上
+擬合、在另一半上評估，再交換取平均}。
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lrr@{}}
+\toprule
+子任務 & 編碼器單獨 & 最佳誠實增益 \\
+\midrule
+\textcircled{1} & 0.7849 & $+0.0040$ \\
+\textcircled{2} & 0.6604 & $0.0000$ \\
+\rowcolor{red!10}
+\textcircled{3} & 0.4140 & $\mathbf{-0.0046}$（七個模型全部為負）\\
+\textcircled{4} & 0.5338 & $+0.0033$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+28 個「模型 $\times$ 子任務」組合中，誠實增益為正的只有 2 格，都在 $+0.004$ 以內，
+遠小於 $n=601$ 的雜訊帶。\textbf{\textcircled{3}——本研究最想改善的子任務——七個
+模型全部使其變差}（$-0.0046$ 至 $-0.0269$）。即使允許每個子任務各自挑選最適合的
+模型，加權總計也只動 $+0.0013$。
+
+\begin{tcolorbox}[colback=blue!5, colframe=blue!55, title=這個實驗的方法論價值大於其結果]
+同一組資料、同一個模型（Qwen3-8B 在\textcircled{4}上）：
+
+\medskip
+\begin{tabular}{@{}lr@{}}
+Oracle（在同一批資料上挑最佳權重） & $\mathbf{+0.0168}$ \\
+誠實（權重擬合與評估分開） & $\mathbf{-0.0194}$ \\
+\end{tabular}
+
+\medskip
+原因在擬合出的權重本身：\textbf{A 半選 0.30、B 半選 0.05，相差六倍}。那不是在定位
+最佳權重，是在擬合雜訊。這驗證了第 \ref{sec:framework} 節評估框架的主張：
+\textbf{樣本量小時，未經樣本外驗證的數字沒有意義。}
+\end{tcolorbox}
+
+\textbf{兩個附帶觀察值得保留}：
+
+\begin{enumerate}[leftmargin=2em, itemsep=2pt]
+  \item \textbf{量化幾乎免費}。Qwen3-8B 的 bf16 與 NF4 在四個子任務上差距
+        $\le 0.016$，NF4 在\textcircled{3}上還略勝（0.2612 vs 0.2456）。以 4-bit
+        掃描模型家族是有依據的做法。
+  \item \textbf{規模沒有幫助，而且最強的個體不是最好的集成成員}。8B $\to$ 14B
+        $\to$ 32B 在\textcircled{1}\textcircled{2}\textcircled{4}上都是下降的。
+        Qwen3-32B 單獨分數最高，但在\textcircled{3}上與編碼器的\textbf{互補性最低}
+        （「僅語言模型答對」0.126，14B 是 0.170）——它變強的方式是變得更像編碼器，
+        而那正是投票用不上的。
+\end{enumerate}
+
+\subsection*{假設 M：檢索增強（RAG）$\to$ 總體無效，但單一子任務成立（本版新增）}
+
+\textbf{動機}：前八個失敗有一個共同性質——\textbf{全都是在改「怎麼學」或「怎麼合併」，
+沒有一個改變模型能看到的資訊}。訓練曲線顯示\textcircled{3}在第 3 個 epoch 就飽和，
+代表輸入裡的資訊已被榨乾。檢索是第一個真正增加資訊的介入。
+
+分兩階段：\textbf{A 階段}用 \fn{BAAI/bge-m3} 嵌入全部段落，對每個段落取最相似的 $k$
+個鄰居、以相似度加權投票其標籤，再與編碼器機率混合；\textbf{B 階段}把同一批鄰居連同
+正確標籤放進提示詞餵給 Qwen3-8B。檢索一律採\textbf{留一法}。
+
+\paragraph{前提檢定：鄰居的標籤一致嗎}
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+子任務 & 隨機基準 & $k=10$ 實際 & 倍數 \\
+\midrule
+\textcircled{1} & 0.6966 & 0.7737 & 1.11$\times$ \\
+\textcircled{2} & 0.5069 & 0.5957 & 1.18$\times$ \\
+\textcircled{3} & 0.4324 & 0.5097 & 1.18$\times$ \\
+\rowcolor{green!10}
+\textcircled{4} & 0.2615 & 0.3783 & \textbf{1.45$\times$} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+只有\textcircled{4}的 1.45$\times$ 稱得上明顯，而且它是唯一 $k$ 越大表現越好的子任務。
+
+\paragraph{A 階段的樣本外權重擬合}
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lrrl@{}}
+\toprule
+子任務 & Oracle 增益 & 誠實增益 & 擬合權重 (A/B) \\
+\midrule
+\textcircled{1} & $+0.0000$ & $-0.0028$ & 0.10 / 0.00 \\
+\textcircled{2} & $+0.0094$ & $+0.0044$ & 0.20 / 0.30 \\
+\textcircled{3} & $+0.0052$ & $+0.0010$ & 0.15 / 0.05 \\
+\rowcolor{green!10}
+\textcircled{4} & $+0.0283$ & $\mathbf{+0.0253}$ & \textbf{0.50 / 0.35} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{tcolorbox}[colback=green!5, colframe=green!45, title=與假設 L 的訊號完全不同]
+\begin{tabular}{@{}lrr@{}}
+ & LLM 投票（\textcircled{4}） & 檢索（\textcircled{4}） \\
+\midrule
+Oracle 增益 & $+0.0168$ & $+0.0283$ \\
+誠實增益 & $\mathbf{-0.0194}$ & $\mathbf{+0.0253}$ \\
+兩者落差 & 0.036 & \textbf{0.003} \\
+兩半擬合權重 & 0.30 / 0.05（差 6 倍） & 0.50 / 0.35（接近） \\
+\end{tabular}
+
+\medskip
+Oracle 幾乎等於誠實、兩半擬合出相近權重——這是「真的定位到最佳權重」的特徵。
+\end{tcolorbox}
+
+\paragraph{測試集實測（最嚴格協定）}
+$k$ 與權重都選在 train+val，測試集向 train+val 做跨集檢索，測試集只評一次：
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+子任務 & $k$ & $w$ & 編碼器 & ＋檢索 & $\Delta$ \\
+\midrule
+\textcircled{1} & 20 & 0.05 & 0.8081 & 0.8069 & $-0.0012$ \\
+\textcircled{2} & 10 & 0.35 & 0.6734 & 0.6683 & $-0.0051$ \\
+\textcircled{3} & 3 & 0.30 & 0.4327 & 0.4333 & $+0.0006$ \\
+\rowcolor{green!10}
+\textcircled{4} & 20 & 0.45 & 0.5781 & \textbf{0.5892} & $\mathbf{+0.0110}$ \\
+\midrule
+加權總計 & & & \textbf{0.6018} & 0.6019 & $\mathbf{+0.0001}$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{總體等於零}，但\textcircled{4}的 $+0.0110$ 是本研究\textbf{第一個通過完整
+協定的正向結果}。逐類別看：\fn{already}（$n=749$）$+0.0965$、
+\fn{between\_2\_and\_5\_years}（$n=483$）$+0.0386$，而 \fn{N/A}（$n=375$）$-0.0342$、
+\fn{within\_2\_years}（$n=44$）$-0.0410$。\textbf{檢索在措辭慣例穩定的類別上大幅
+有效，在結構性標籤上有害}——\fn{N/A} 由「有沒有承諾」決定，跟措辭相似度無關。
+
+\paragraph{B 階段：把檢索結果餵給語言模型是有害的}
+
+零樣本 $\to$ 8 範例檢索：\textcircled{1} $+0.0051$、\textcircled{2} $-0.0141$、
+\textcircled{3} $-0.0139$、\textcircled{4} $\mathbf{-0.0854}$。把 B 加進 A 的混合
+後，\textcircled{4}的誠實增益從 $+0.0253$ 掉到 $+0.0148$。
+
+\textbf{同一組檢索，當機率訊號有用、當提示範例有害。} 鄰居標籤一致性只有 1.45$\times$
+隨機，八個範例中相當比例的標籤與查詢不同，把模型的標籤先驗帶偏——\textcircled{4}有
+五個類別，最容易被帶偏。\fn{Misleading} 在 B 階段預測 \textbf{0 次}：給定義不行，
+給範例也不行。
+
+\subsection*{假設 N：\fn{Misleading} 只是超出我們的算力 $\to$ 推翻（本版新增）}
+
+\textbf{動機}：到此為止，所有找不到 \fn{Misleading} 的嘗試都用了\textbf{至多 320 億
+參數、量化過、跑在單張消費級顯示卡上}的模型。所以「沒有方法找得到」實際上只是
+「\textbf{我們跑得動的}方法找不到」——這是算力限制，不是任務性質。
+
+要讓「這個類別無法被自動方法認出」成為發現而非抱怨，必須排除算力這個解釋。
+
+\textbf{實驗設計}：用三家廠商當前的前沿模型，以準則原文定義作提示（不給範例），對
+測試集中 \fn{evidence\_status=Yes} 的全部 1{,}335 列判斷 \fn{evidence\_quality}。
+該集合包含測試集\textbf{全部 3 筆} \fn{Misleading}。
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lrrrrrr@{}}
+\toprule
+模型 & macro-F1 & Clear & Not Clear & Misleading & 輸出次數 & 抓到 \\
+\midrule
+claude-opus-5    & 0.3538 & 0.6721 & 0.3892 & \textbf{0.0000} & 7 & \textbf{0 / 3} \\
+claude-sonnet-5  & 0.4489 & 0.8649 & 0.4819 & \textbf{0.0000} & 2 & \textbf{0 / 3} \\
+gpt-5.6-sol      & 0.4325 & 0.8389 & 0.4587 & \textbf{0.0000} & 5 & \textbf{0 / 3} \\
+gemini-3.7-flash & 0.4143 & 0.8355 & 0.4073 & \textbf{0.0000} & 4 & \textbf{0 / 3} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{四個模型對三筆的判斷完全一致}
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lllll@{}}
+\toprule
+id & claude-opus-5 & claude-sonnet-5 & gemini-3.7-flash & gpt-5.6-sol \\
+\midrule
+12010 & Not Clear & Not Clear & Not Clear & Not Clear \\
+\rowcolor{red!10}
+12772 & \textbf{Clear} & \textbf{Clear} & \textbf{Clear} & \textbf{Clear} \\
+13102 & Not Clear & Not Clear & Not Clear & Not Clear \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{三家公司、四個獨立訓練的系統，逐筆給出同一個答案，而且都不是標註者的答案。}
+這比「四次獨立失敗」強得多——這些模型讀這些段落的方式是\textbf{一致的}，只是跟標註者
+不同。
+
+\paragraph{它們不是拒絕使用這個標籤}
+四個模型在 1{,}335 列中總共輸出 \textbf{18 次} \fn{Misleading}，\textbf{每一次都是
+錯的}。模型理解這個類別、願意使用它，只是從來沒有跟標註者指向同一批段落。這排除了
+最直觀的解釋——「定義沒有傳達清楚」。
+
+\paragraph{兩個附帶觀察}
+\textbf{前沿零樣本輸給微調的小模型}：最佳 API 模型 0.4489，我們的三骨幹集成在對應
+二元部分是 0.6602。\textbf{能力更強反而更差}：claude-opus-5 是四個裡最低的，比
+claude-sonnet-5 低 0.095，差距集中在 \fn{Clear}，且它輸出 \fn{Misleading} 最頻繁。
+更強的推理讓模型更願意挑證據的毛病，於是偏離了「大多不挑毛病」的標註者。
+
+% ===========================================================================
+\section{主要發現}
+
+\subsection{子任務\textcircled{3}的困難在輸入層次，不在最佳化層次}
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}llc@{}}
+\toprule
+介入方式 & 結果 & 出處 \\
+\midrule
+訓練更久 & 12 個 epoch 換 $+0.0049$ & 假設 K \\
+給稀有類別更多資料 & 每個條件都更差 & 假設 I \\
+降低預測門檻 & 單調下滑，無內部最佳解 & 假設 J \\
+跨度標註當輸入 & $+0.008$，信賴區間跨零 & 假設 B \\
+跨度標註當關係 & AUC 0.4671，低於亂猜 & 假設 C \\
+專用頭取代多任務頭 & 0.4246 vs 0.4472，無增益 & 假設 H \\
+手寫準則特徵融合 & 堆疊比單模型差 & 假設 D／E \\
+\rowcolor{yellow!15}
+\textbf{大型語言模型投票} & \textbf{七個模型全部為負} & 假設 L \\
+\rowcolor{yellow!15}
+\textbf{檢索增強} & \textbf{測試集 $+0.0006$} & 假設 M \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{九個彼此獨立的介入都推不動它}，加上飽和曲線：它不是訓練不足、不是資料不夠、
+不是參數不夠、也不是門檻沒調好。這讓「無法改善\textcircled{3}」成為一項發現。
+
+\subsection{\fn{Misleading} 兩個方向都不可及}
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lllc@{}}
+\toprule
+方向 & 方法 & 規模 & 結果 \\
+\midrule
+\textbf{辨識} & 微調三骨幹集成 & 3$\times$340M & 2{,}000 筆中預測 \textbf{0 次} \\
+\textbf{辨識} & 語意關聯度（零樣本） & 568M & AUC \textbf{0.4671} \\
+\textbf{辨識} & 定義式 LLM（零樣本） & 8B & \textbf{0/5} \\
+\textbf{辨識} & 檢索範例提示 & 8B & 預測 \textbf{0 次} \\
+\rowcolor{red!10}
+\textbf{辨識} & \textbf{前沿 API 模型 $\times$4} & \textbf{前沿} & \textbf{0/3，18 次誤報} \\
+\textbf{生成} & 引導式最小編輯 LLM & 8B & 300 筆合成 $\to$ 召回 \textbf{0} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+而標註者的 Alpha 是 \textbf{0.940}。
+
+\begin{tcolorbox}[colback=red!5, colframe=red!55, title=加入前沿模型後，主張的性質改變了]
+原本只能說「我們跑得動的方法找不到」，受限於單張消費級顯示卡；現在可以說：
+
+\medskip
+\textbf{包含 Anthropic、OpenAI、Google 當前最強的商用模型在內，沒有任何方法能認出
+這個類別哪怕一次，而受訓的人類標註者在同一個欄位達到 Krippendorff's Alpha 0.940。}
+
+\medskip
+這是\textbf{資料集與評測設計的性質，不是任何特定系統的能力限制}。
+
+\medskip
+其學術意義不在於「它值多少分」，而在於：\textbf{一個由人類可靠標註、且對應到實務上
+最重要概念（漂綠）的類別，在只有 5 個樣本的情況下，對所有已知的自動方法都是不可及
+的。} 這對「稀有但關鍵的類別該如何納入評測」提出了一個具體問題——若一個類別無法被
+任何方法學會，把它放進未加權平均，量到的就不是系統能力，而是該類別的樣本數。
+\end{tcolorbox}
+
+\subsection{macro 平均在這個資料集上不可辯護}
+
+拿掉 \fn{Misleading} 使 macro-F1 動 $+0.1547$、支持度加權 F1 動 $+0.0011$，
+\textbf{相差 140 倍}。此論證不需引用任何競賽權重。
+
+\subsection{\textcircled{3}與\textcircled{4}的困難性質不同——本研究的核心對比}
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lrr@{}}
+\toprule
+介入 & \textcircled{3} & \textcircled{4} \\
+\midrule
+專用模型取代多任務頭 & 無增益 & $\mathbf{+0.0952 / +0.0557}$ \\
+大型語言模型投票 & 七個模型全負 & $+0.0033$ \\
+\textbf{檢索增強（測試集）} & $\mathbf{+0.0006}$ & $\mathbf{+0.0110}$ \\
+訓練更久 & $+0.0049$ & $+0.0383$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{三種彼此獨立的方法都改善\textcircled{4}，九種方法都推不動\textcircled{3}。}
+
+機制上說得通：\textcircled{4}判斷「何時可驗證」，大量取決於\textbf{措辭慣例}——
+「已完成」「將於 2030 年」「持續推動」。檢索抓得到這種表面規律（鄰居標籤一致性
+1.45$\times$ 隨機，其餘子任務只有 1.11--1.18$\times$），專用模型也抓得到。
+
+\textcircled{3}判斷「證據是否充分」，需要的是\textbf{對證據內容的評估}，而那個資訊
+不在段落的表面形式裡。訓練曲線在第 3 個 epoch 飽和，正是「輸入裡沒有更多東西可抽」
+的直接證據。
+
+\begin{tcolorbox}[colback=blue!5, colframe=blue!55]
+這個對比讓「我們改善不了\textcircled{3}」從辯解變成主張：\textbf{不是方法不夠好，
+而是兩個子任務的困難位於不同層次。}
+\end{tcolorbox}
+
+\subsection{競賽權重不影響最優系統（本版修正）}
+\label{sec:weights}
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+為誰配的規則 $\backslash$ 用誰評分 & 競賽加權 & 均勻 & 整筆正確 & MCC \\
+\midrule
+不調整 & 0.6018 & 0.6231 & 0.3605 & 0.5009 \\
+為競賽加權配 & \textbf{0.6176} & 0.6398 & 0.4365 & 0.5296 \\
+為均勻配 & 0.6176 & \textbf{0.6398} & 0.4365 & 0.5296 \\
+為整筆正確配 & 0.5790 & 0.6067 & \textbf{0.4535} & 0.5131 \\
+為 MCC 配 & 0.6154 & 0.6382 & 0.4400 & \textbf{0.5332} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{競賽加權與均勻加權配出同一組規則，每欄分數完全一樣。} 改權重改變的只是你
+報出來的數字，不是你會建的系統。\textbf{真正的張力在 macro 平均 vs 整筆完全正確}：
+優化 macro 家族要付 0.0170 的整筆正確；優化整筆正確要付 0.0386 的競賽分數。
+
+\subsection{專用模型只在子任務\textcircled{4}有效}
+
+1 骨幹自由組合下專用與多任務\textbf{完全相同}（0.6015 vs 0.6015）。唯一動的是
+\textcircled{4}：$0.5291 \to 0.5848$（\textbf{+0.0557}），方向與另一次獨立實驗
+（+0.0952）一致，\textbf{是目前唯一跨兩次實驗複現的正向結果}。而\textcircled{4}正是
+官方基線最弱的子任務（0.4227）。
+
+\subsection{競賽集成的領先幾乎全部來自集成本身}
+
+0.6384 與 0.6157 的差距是 0.0230，其中訓練預算佔 \textbf{+0.0039}、集成佔
+\textbf{+0.0142}，合計約 0.018。\textbf{留給「多任務 vs 專用」的空間所剩無幾}。
+
+% ===========================================================================
+\section{與 8 月 25 日版本的差異}
+\label{sec:diff}
+
+\begin{longtable}{@{}p{6.4cm}p{8.2cm}@{}}
+\toprule
+前版說法 & 現況 \\
+\midrule
+\endhead
+「強制標籤階層一致會扣分」是\textbf{最主要的發現}，有\textbf{三次獨立量測} &
+\textbf{修正}。三次量測\textbf{都跑在多任務或串接架構上}，並非獨立。專用模型架構上
+代價是 $+0.0013$ / $+0.0003$。這是\textbf{多任務架構的性質} \\
+\addlinespace
+專用頭值 $+0.0176$ &
+\textbf{修正}。該數字只在「強制一致」條件下出現。自由組合下兩者完全相同。唯一存活的
+是\textcircled{4}的 $+0.0557$ \\
+\addlinespace
+集成值約 $+0.03$ & \textbf{修正為 $+0.0142$}。前值混進了訓練預算差異 \\
+\addlinespace
+三效應可加，可達約 0.649 & \textbf{推翻}。實測 0.6157 \\
+\addlinespace
+競賽權重「不是可辯護的測量工具」，暗示它扭曲了系統設計 &
+\textbf{過度}。權重決定了排行榜，但\textbf{不改變最優決策規則}。真正的問題是 macro
+平均，不是權重 \\
+\addlinespace
+自創「結構一致率（SCR）」作為指標 &
+\textbf{改用}「輸出了準則不允許之標籤的列數」（80 / 115 / 59），可直接解讀 \\
+\bottomrule
+\end{longtable}
+
+% ===========================================================================
+\section{資料集品質與可重現性}
+
+\subsection{資料集缺陷（建議回報主辦方）}
+
+\begin{enumerate}[leftmargin=2em, itemsep=3pt]
+  \item \textbf{訓練集與驗證集用兩種編碼表示同一個「不適用」}：訓練集的 186 筆在
+        \textcircled{2}\textcircled{3}\textcircled{4}欄位是\textbf{空字串}，驗證集
+        的 187 筆是 \texttt{"N/A"}，官方提交範例用 \texttt{"N/A"}。未正規化的隊伍
+        模型會輸出空字串，該列直接零分。
+  \item \textbf{公司數被高估}：股票代號 3231 有兩種大小寫寫法。
+  \item \textbf{\fn{esg\_type} 多標籤排序不一致}：\texttt{E;S}（23 筆）與
+        \texttt{S;E}（12 筆）表示相同內容卻是不同字串，另有 21 筆空值。
+\end{enumerate}
+
+\subsection{一個值得寫入論文的可重現性陷阱}
+
+\fn{IDEA-CCNL/Erlangshen-DeBERTa-v2-320M-Chinese} 的 \textbf{checkpoint 權重以 fp16
+儲存}。載入後編碼器輸出 Half、分類頭是 fp32。
+
+\begin{itemize}[leftmargin=2em, itemsep=1pt]
+  \item 使用 \texttt{torch.amp.GradScaler} 會直接報錯
+        \texttt{Attempting to unscale FP16 gradients}
+  \item 移除 GradScaler（用 bf16 時它本來就是空操作）後，AdamW \textbf{不報錯、
+        直接下溢}——模型完全沒學到東西
+\end{itemize}
+
+唯一的徵兆是分數剛好等於「永遠預測少數類別」：\textcircled{1}的折外 macro-F1 為
+\textbf{0.1572}，而全部預測 \fn{No} 的理論值是
+$(2\times373/(373+2000) + 0)/2 = 0.157$。修正方式是載入後呼叫 \texttt{.float()}；
+修正後該骨幹的折外分數為 0.7956 / 0.6625 / 0.4197 / 0.5638。
+
+\textbf{一個以 fp16 發布的 checkpoint 會靜默地訓練失敗而非報錯}，值得在可重現性
+章節提出。
+
+\subsection{量化後端的連鎖失效}
+
+\texttt{transformers} 5.16 已將 AWQ 格式改由 \texttt{gptqmodel} 後端載入，而該套件
+要求 torch $\ge 2.11$（本專案所有編碼器實驗都在 2.8 上驗證過）。安裝它時會連帶拉進
+\texttt{torchao}，而 \texttt{transformers} 的量化器派發模組會\textbf{無條件 import
+\texttt{torchao}}——於是連原本可用的 bitsandbytes 路徑也一起失效。錯誤訊息是
+\texttt{cannot import name 'ScalingType' from 'torch.nn.functional'}，指向 torch
+版本\textbf{而非真正的肇因}。
+
+\textbf{教訓：為了支援 A 而安裝的套件，可能靜默地讓 B 失效，而錯誤訊息不會指向它。}
+
+\subsection{大型檔案下載的兩個陷阱}
+
+在記憶體受限的機器（3.7GB cgroup 上限）下載 4.85GB 的模型分片時：
+
+\begin{enumerate}[leftmargin=2em, itemsep=1pt]
+  \item \texttt{huggingface\_hub} 的下載程序會被 OOM 終止，\textbf{沒有 traceback、
+        log 裡什麼都沒有}
+  \item 更關鍵的是它\textbf{跨程序不續傳}——每次重啟建立新的 \texttt{.incomplete}
+        暫存檔。實測 42GB 磁碟用量、\textbf{0 個完整檔案}
+\end{enumerate}
+
+改用 \texttt{curl -C -} 即解決：固定記憶體串流、對同一檔案做位元組範圍續傳，實測
+吞吐 60 MB/s。
+
+\subsection{磁碟配額錯誤會偽裝成其他問題}
+
+網路磁碟（MooseFS）的\textbf{每使用者配額}用 \texttt{df} 看不出來——\texttt{df}
+顯示整個共享叢集（2.1P、84\%），實際配額約 100GB。配額用盡時檔案寫入產生 0 位元組
+檔案，下游症狀五花八門：base64 解碼產出空檔、JSON 設定檔變成 0 bytes 導致
+\texttt{JSONDecodeError}、模型載入失敗。真正的錯誤訊息
+\texttt{base64: write error: Disk quota exceeded} 只在原始輸出裡出現一次。
+\textbf{應在第一次異常時就讀原始錯誤，而非從症狀推測原因。}
+
+% ===========================================================================
+\section{後續工作}
+
+\subsection{現況評估}
+
+\textbf{增益貢獻仍然不足。} 目前最好的新配置是 0.6157，競賽集成是 0.6384。唯一穩定
+的正向結果是\textcircled{4}的 $+0.0557$。論文目前的骨幹是一組互相印證的\textbf{否定
+結果}加上一項\textbf{機制刻畫}，學術上站得住，但缺少方法貢獻。
+
+\subsection{尚未嘗試的方向}
+
+第 7.1 節證明\textcircled{3}的困難不在最佳化，因此\textbf{要突破必須改變模型能看到
+的資訊}，而非改變訓練方式。以下按此邏輯排序：
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}p{3.6cm}p{8.2cm}p{1.6cm}@{}}
+\toprule
+方向 & 理由 & 成本 \\
+\midrule
+\textbf{注入 ESG 領域知識}（GRI / SASB / TCFD / ISO 14064、14001 條文） &
+直接增加輸入端資訊。準則要求判斷「證據是否充分」，而「充分」在 ESG 領域有成文標準。
+這是唯一針對「輸入層次限制」的介入 & 中 \\
+\addlinespace
+\textbf{檢索增強（RAG）} & 檢索同公司其他段落或同產業對照段落作為脈絡，可能解決
+「這個數字算不算具體」需要比較基準的問題 & 中 \\
+\addlinespace
+\textbf{LoRA 微調大型語言模型} & 目前 LLM 只用於零樣本。微調 7--8B 模型可能比 340M
+編碼器更能捕捉判斷 & 中高 \\
+\addlinespace
+\sout{本地 LLM 投票 / 與編碼器集成} & \textbf{已執行，無效}——見假設 L。七個模型、
+28 個組合，誠實增益僅 2 格為正且均 $< +0.004$ & 已完成 \\
+\addlinespace
+\textbf{商用 API LLM} & 作為上界參考，並檢驗「更強的模型能否偵測 \fn{Misleading}」
+& 低 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{建議的優先順序}
+
+\begin{enumerate}[leftmargin=2em, itemsep=2pt]
+  \item \sout{本地 LLM 投票加入集成}——\textbf{已完成，無效}（假設 L）
+  \item \sout{檢索增強（RAG）}——\textbf{已完成}（假設 M）。總體 $+0.0001$，但
+        \textcircled{4}取得 $\mathbf{+0.0110}$ 的測試集實測增益，是本研究第一個通過
+        完整協定的正向結果
+  \item \sout{API 大型語言模型作為上界}——\textbf{已完成}（假設 N）。四個前沿模型
+        0/3，\fn{Misleading} 確認為本質不可偵測
+  \item \textbf{LoRA 微調}——優先度下調。假設 L 顯示這些模型在本任務上的零樣本訊號
+        極弱，微調能否翻轉存疑
+\end{enumerate}
+
+\subsection{尚未解決的問題}
+
+\begin{itemize}[leftmargin=2em, itemsep=1pt]
+  \item \textbf{假設 B 的方法限制}：資料處理瑕疵已於第 \ref{sec:spanredo} 節排除
+        （清理後僅動 $+0.0025$），但該實驗仍用字元 $n$-gram 傳統統計模型，無法表達
+        承諾與證據之間的關係，條件 C 因此被低估。神經網路版本尚未執行
+  \item \textbf{假設 E 的隔離／端到端落差}：為何隔離條件下的大幅改善無法傳遞
+\end{itemize}
+
+% ===========================================================================
+\section{術語表}
+\label{sec:glossary}
+
+\begin{longtable}{@{}p{4.2cm}p{10.3cm}@{}}
+\toprule
+術語 & 說明 \\
+\midrule
+\endhead
+\textbf{macro-F1} & 先算每個類別的 F1，再取未加權平均。小類別與大類別權重相同 \\
+\textbf{支持度加權 F1} & 同上，但依各類別的樣本數加權 \\
+\textbf{精確率 / 召回率} & 精確率：預測為某類的樣本中實際正確的比例。召回率：實際屬於某類的樣本中被找出的比例 \\
+\textbf{balanced accuracy} & 各類別召回率的未加權平均 \\
+\textbf{MCC} & Matthews 相關係數。類別不平衡下穩健的單一指標，$-1$ 到 1，0 為隨機 \\
+\textbf{Cohen's kappa} & 扣除隨機一致後的一致程度 \\
+\textbf{Krippendorff's Alpha} & 衡量標註者一致程度；本研究也用它衡量「模型與正解」的一致程度，以便與標註者間的數值直接比較 \\
+\textbf{AUC} & ROC 曲線下面積，衡量排序能力。0.5 = 等同亂猜 \\
+\textbf{Cramér's V} & 兩個類別變數的關聯強度，0 = 無關聯 \\
+\textbf{整筆完全正確} & 四個欄位全部答對的段落比例 \\
+\textbf{條件式評估} & 每個子任務只在「正解使其適用」的列上評分 \\
+\textbf{人類天花板比} & 模型與正解的 Alpha $\div$ 標註者間的 Alpha \\
+\textbf{交叉驗證 / 折外預測} & 把訓練資料切成 $K$ 份輪流驗證；折外預測指每筆資料由「沒看過它的模型」所做的預測 \\
+\textbf{集成 (Ensemble)} & 訓練多個模型並綜合其預測 \\
+\textbf{骨幹 (Backbone)} & 系統所使用的預訓練語言模型本體 \\
+\textbf{多任務學習} & 一個共用模型本體上接多個分類頭，同時學習多個任務 \\
+\textbf{零樣本 (Zero-shot)} & 不提供任何訓練範例，僅靠任務描述讓模型作答 \\
+\textbf{跨度標註 (Span)} & 標出文本中特定文字片段的起訖位置 \\
+\textbf{雙塔 / 交叉編碼器} & 雙塔分別編碼兩段文字再算相似度（快）；交叉編碼器把兩段一起輸入直接輸出分數（準但慢） \\
+\textbf{投影到合法集合} & 把違反標註階層邏輯的預測改成最接近的合法組合 \\
+\textbf{LoRA} & 低秩適配，只訓練少量新增參數即可微調大型模型 \\
+\textbf{RAG} & 檢索增強生成。先檢索相關文件片段，再連同問題一起餵給模型 \\
+\textbf{Bootstrap / 信賴區間} & 以重複抽樣估計不確定範圍；區間跨越 0 表示無法排除「沒有效果」 \\
+\bottomrule
+\end{longtable}
+
+% ===========================================================================
+\section{實驗索引}
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}clp{6.8cm}@{}}
+\toprule
+編號 & 程式 & 對應內容 \\
+\midrule
+05 & \texttt{05\_official\_test\_scoring.py}      & 第 4.1 節 \\
+06 & \texttt{06\_span\_coverage.py}               & 假設 B 的跨度覆蓋率 \\
+07 & \texttt{07\_e3\_gold\_span\_upper\_bound.py} & 假設 B \\
+08 & \texttt{08\_s1s2\_diagnostics.py}            & 假設 C（詞彙版）、假設 D \\
+09 & \texttt{09\_s1\_semantic\_relatedness.py}    & 假設 C（語意版） \\
+10 & \texttt{10\_s4\_feature\_fusion.py}          & 假設 E（隔離條件） \\
+11 & \texttt{11\_misleading\_zeroshot.py}         & 假設 G \\
+12 & \texttt{12\_end\_to\_end\_gain.py}           & 假設 E（端到端） \\
+13 & \texttt{13\_dedicated\_heads\_full.py}       & 假設 H \\
+14 & \texttt{14\_joint\_multitask\_control.py}    & 假設 F \\
+15 & \texttt{15\_dedicated\_ensemble\_free.py}    & 假設 H、第 7.5、7.6 節 \\
+16 & \texttt{16\_independent\_evaluation.py}      & 第 \ref{sec:framework} 節 \\
+17 & \texttt{17\_headroom\_decomposition.py}      & 第 \ref{sec:headroom} 節 \\
+18 & \texttt{18\_decision\_rule\_objectives.py}   & 假設 J、第 \ref{sec:weights} 節 \\
+19 & \texttt{19\_llm\_augmentation.py}            & 假設 I \\
+20 & \texttt{20\_training\_budget\_curve.py}      & 假設 K、第 7.1 節 \\
+21 & \texttt{21\_llm\_vote\_sweep.py}              & 假設 L：約束式評分 \\
+22 & \texttt{22\_llm\_vote\_weights.py}            & 假設 L：樣本外權重擬合 \\
+23 & \texttt{23\_retrieval\_augmentation.py}       & 假設 M：A、B 兩階段 \\
+24 & \texttt{24\_retrieval\_gain.py}               & 假設 M：樣本外權重擬合 \\
+25 & \texttt{25\_retrieval\_test\_eval.py}         & 假設 M：測試集實測 \\
+26 & \texttt{26\_frontier\_api\_ceiling.py}        & 假設 N：四個前沿 API 模型 \\
+27 & \texttt{27\_span\_clean\_redo.py}             & 假設 B 以清理後跨度重做 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{運算環境} NVIDIA RTX 4090（24GB）雲端執行個體，累計約 11 小時 GPU 時間。
+
+\paragraph{評測協定} 所有模型選擇、超參數與門檻值均僅使用訓練集與驗證集的交叉驗證
+決定；測試集僅在最終評估時使用一次。
+
+\end{document}

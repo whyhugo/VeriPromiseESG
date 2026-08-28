@@ -1,0 +1,530 @@
+% ---------------------------------------------------------------------------
+% 支線報告：未使用的標註資源與人機判準分歧
+% 以 XeLaTeX 編譯：  xelatex span_and_divergence_2026-08-28.tex
+% ---------------------------------------------------------------------------
+\documentclass[11pt,a4paper]{ctexart}
+
+\usepackage{geometry}
+\geometry{margin=2.4cm}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{amsmath}
+\usepackage[table]{xcolor}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true, linkcolor=black, urlcolor=blue, citecolor=black}
+\usepackage{fancyhdr}
+\usepackage{tcolorbox}
+\usepackage[normalem]{ulem}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{支線報告：未使用的標註資源與人機判準分歧}
+\fancyhead[R]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+\newcommand{\fn}[1]{\texttt{#1}}
+
+\title{\textbf{未使用的標註資源，與人機判準的分歧}\\[0.4em]
+       \large VeriPromiseESG4K 支線研究報告}
+\author{AI CUP 2026 VeriPromiseESG 競賽後續學術研究}
+\date{2026 年 8 月 28 日}
+
+\begin{document}
+\maketitle
+
+\begin{tcolorbox}[colback=gray!8, colframe=gray!50, title=這份文件的定位]
+本報告是主進度報告（\texttt{progress\_report\_2026-08-27}）的\textbf{支線}，記錄兩項
+與主線不同性質的工作。
+
+\medskip
+\textbf{主線}問的是「子任務三（證據品質判斷）能不能做得更好」，答案是九種介入全部失敗。
+\textbf{本支線}不再嘗試改善那個分數，而是轉向兩件主線沒有碰的事：一個\textbf{沒有任何
+人使用過的標註資源}，以及一份\textbf{已經產生、但尚未被分析的實驗副產物}。
+
+\medskip
+與主報告相同，本文不預設讀者了解此競賽或任何先前討論，所有術語在首次出現時定義，
+第 \ref{sec:glossary} 節另附術語表。
+\end{tcolorbox}
+
+\tableofcontents
+\newpage
+
+% ===========================================================================
+\section{背景}
+
+\subsection{這個資料集在做什麼}
+
+上市公司每年出版「永續報告書」（ESG 報告書），說明自己在環境（Environmental）、社會
+（Social）、公司治理（Governance）三方面的作為。這類報告書篇幅數百頁，充滿各種\textbf{承諾}
+——例如「我們將於 2030 年達成碳中和」。問題在於這些承諾很難查證：有些附具體佐證，
+有些只有空泛宣示，後者即「\textbf{漂綠}」（greenwashing）。
+
+VeriPromiseESG4K 是為此建立的資料集：4{,}000 個取自 49 家台灣上市公司 2024 年永續
+報告書的段落，切分為訓練 1{,}000、驗證 1{,}000、測試 2{,}000，由 21 位標註者分 7 組
+人工標註。
+
+\subsection{標註內容}
+
+每個段落有\textbf{四個分類欄位}：
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}clp{4.2cm}p{5.2cm}@{}}
+\toprule
+編號 & 欄位 & 說明 & 可能的值 \\
+\midrule
+\textcircled{1} & \fn{promise\_status} & 有沒有包含 ESG 承諾？ & Yes / No \\
+\textcircled{2} & \fn{evidence\_status} & 承諾有沒有具體佐證？ & Yes / No / N/A \\
+\textcircled{3} & \fn{evidence\_quality} & 佐證品質如何？ & Clear / Not Clear / Misleading / N/A \\
+\textcircled{4} & \fn{verification\_timeline} & 何時可驗證？ & already / within\_2\_years / between\_2\_and\_5\_years / more\_than\_5\_years / N/A \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+以及\textbf{兩個文字跨度欄位}：\fn{promise\_string} 標出段落中「承諾是哪一句」，
+\fn{evidence\_string} 標出「佐證是哪一句」。
+
+\subsection{子任務\textcircled{3}的三個等級}（引自官方標註準則）
+
+\begin{itemize}[leftmargin=2em, itemsep=1pt]
+  \item \textbf{Clear}：資訊充分且具體，足以支持該承諾。
+  \item \textbf{Not Clear}：資訊缺漏，內容只能部分理解，或流於表面。
+  \item \textbf{Misleading}：該證據\textbf{無論真假}，與所主張的承諾之間沒有清楚關聯，
+        看起來像是在轉移注意力。
+\end{itemize}
+
+\fn{Misleading} 是漂綠偵測的核心，也是本支線第二部分的主角。
+
+% ===========================================================================
+\section{為什麼開這條支線}
+
+主線的九項介入全部失敗，而且它們有一個共同性質：\textbf{全都在改變「模型怎麼學」或
+「輸出怎麼合併」，沒有一項改變模型能看到的資訊，也沒有一項改變任務的形式}。
+
+同時，主線的訓練曲線顯示子任務\textcircled{3}在第 3 個訓練週期就停止進步（0.501 到
+第 15 週期的 0.505），而其他子任務仍在攀升。這指向一個結論：\textbf{段落表面所含的
+資訊已經被榨乾了}。
+
+在這個情況下，繼續在同一個分數上加碼不會產生新的東西。本支線因此轉向兩個主線沒有
+碰的方向：
+
+\begin{enumerate}[leftmargin=2em, itemsep=3pt]
+  \item \textbf{兩個跨度欄位從未被使用}。競賽只評分四個分類欄位，所有參賽系統
+        （包含我們的）都沒有用到 \fn{promise\_string} 與 \fn{evidence\_string}。
+        這是資料集裡唯一真正閒置的資源。
+  \item \textbf{一份已經產生的實驗副產物尚未被分析}。主線曾請四個前沿商用語言模型
+        判斷 1{,}335 個測試段落的證據品質。那批預測的用途原本只是「證明某個類別
+        不可偵測」，但資料本身可以回答一個更有意思的問題：\textbf{當機器彼此一致、
+        卻與人類標註者不一致時，人類看到的是什麼？}
+\end{enumerate}
+
+% ===========================================================================
+\section{第一部分：跨度抽取}
+
+\subsection{資源盤點}
+
+\fn{promise\_string} 與 \fn{evidence\_string} 在三個切分中都存在，欄位完全一致，
+且在適用的列上\textbf{覆蓋率 100\%}：
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+切分 & 總列數 & \fn{promise\_string} 非空 & \fn{evidence\_string} 非空 \\
+\midrule
+訓練 & 1{,}000 & 814 & 677 \\
+驗證 & 1{,}000 & 813 & 668 \\
+測試 & 2{,}000 & 1{,}625 & 1{,}335 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+凡 \fn{promise\_status=Yes} 的列必有 \fn{promise\_string}；凡 \fn{evidence\_status=Yes}
+的列必有 \fn{evidence\_string}。
+
+\subsection{任務為何值得建立}
+
+分類回答的是「這個段落\textbf{有沒有}承諾」，抽取回答的是「承諾\textbf{是哪一句}」。
+對實際使用的稽核人員而言，前者仍需自己讀完整段，後者才直接可用。
+
+\subsection{跨度的結構}
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+切分 & 有承諾跨度的列 & 單一片段 & 多片段 & 中位數字數 & 佔段落比例 \\
+\midrule
+訓練 & 814 & 590（72\%） & 224（28\%） & 49 & 26\% \\
+驗證 & 813 & 614（76\%） & 199（24\%） & 52 & 27\% \\
+測試 & 1{,}625 & 1{,}292（80\%） & 333（20\%） & 50 & 26\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{兩個結構特性}
+
+\textbf{（一）跨度不是單一連續片段。} 二至三成的值用全形分隔符「｜」串接段落中
+\textbf{數個不相鄰}的片段，片段尾端常帶版面殘留的頁碼數字。片段數的分布是：1 段
+590 筆、2 段 164 筆、3 段 35 筆，最多的一筆有 \textbf{26 段}。
+
+\textbf{（二）承諾不在段落開頭。} 第一個片段的起始位置中位數落在段落的 \textbf{8\%}
+處，但四分位是 0\% 與 50\%——分布很廣。因此「輸出整段」與「輸出第一句」都不接近正解，
+這正是任務不 trivial 的原因。
+
+\subsection{核心發現：標註的單元是子句，不是句子}
+\label{sec:unit}
+
+建立這類任務時的第一個設計決定是\textbf{選擇標註單元}。若跨度對齊句子邊界，任務可
+化約為「挑句子」，遠比自由字元位置抽取容易建模與評分。
+
+我們原本假設句子是對的單元。\textbf{結果是錯的。}
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lrr@{}}
+\toprule
+ & 數量 & 比例 \\
+\midrule
+每個片段都恰好是一個完整句子 & 365 & 23\% \\
+選取句子可達到字元 F1 $\ge 0.95$ & 537 & 34\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{tcolorbox}[colback=red!5, colframe=red!50, title=句子選取的上界只有 0.5414]
+即使一個模型永遠選出最好的句子組合，字元層級 F1 也只能到 \textbf{0.5414}。
+\end{tcolorbox}
+
+\paragraph{原因}
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lr@{}}
+\toprule
+ & 數值 \\
+\midrule
+句子長度中位數 & 66 字 \\
+承諾片段長度中位數 & 36 字 \\
+片段完全落在單一句子內 & 2{,}023 / 2{,}202（92\%） \\
+\rowcolor{yellow!15}
+\quad ……且佔該句字數的比例 & 中位數 \textbf{0.41} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{標註者標的是「子句」，不是「句子」。} 92\% 的片段落在單一句子內，但只佔那句的
+四成。選整句會過度選取約兩倍半，這正是天花板卡在 0.54 的原因。
+
+\paragraph{正確的單元}
+
+把逗號「，」與頓號「、」加入分隔符後重做同一項分析：
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+單元 & 長度中位數 & 標註邊界落在單元邊界的比例 & 選取上界（字元 F1） \\
+\midrule
+句子（。！？；） & 66 字 & 24\% & 0.5414 \\
+\rowcolor{green!12}
+\textbf{子句}（再加，、） & \textbf{14 字} & \textbf{71\%} & \textbf{0.9748} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{tcolorbox}[colback=green!5, colframe=green!45, title=任務定義的建議]
+以\textbf{子句}為單元，任務化約為「\textbf{逐子句的二元標註}——這個子句是不是承諾的
+一部分？」
+
+\medskip
+這是標準的序列標註問題，有成熟的模型與評估方式，而且化約本身只損失 2.5\% 的上限
+（0.9748 而非 1.0）。
+\end{tcolorbox}
+
+\paragraph{這個框架順帶解決了不連續片段的問題}
+
+二至三成的跨度是數個不相鄰的片段。在文獻上這稱為\textbf{不連續跨度抽取}（discontinuous
+span extraction），是比一般抽取式問答更難、也少得多人研究的設定——\textbf{標準的
+起訖指標模型根本無法表達它}。
+
+而在逐子句標註的框架下，不相鄰的片段就只是「不相鄰的正例子句」，不需要任何額外機制。
+
+\subsection{基線}
+
+以字元層級指標在訓練＋驗證集（1{,}602 列）上評分：
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+策略 & 精確率 & 召回率 & 字元 F1 & IoU & 完全匹配 \\
+\midrule
+輸出整段 & 0.3348 & 1.0000 & 0.4551 & 0.3348 & 6.7\% \\
+第一句 & 0.4027 & 0.5835 & 0.4171 & 0.3424 & 13.7\% \\
+最長的句子 & 0.3261 & 0.5473 & 0.3620 & 0.2891 & 8.9\% \\
+\rowcolor{yellow!12}
+含承諾線索詞的所有句子 & 0.4223 & 0.7550 & \textbf{0.4803} & 0.3878 & 13.5\% \\
+線索詞最多的那一句 & 0.4554 & 0.6554 & 0.4736 & 0.3918 & 15.4\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+（「承諾線索詞」指「將、預計、規劃、目標、承諾、預期、擬、持續推動、力求、期望、朝、
+邁向、致力、未來」等指向未來行動的詞彙。）
+
+\textbf{要打敗的基線是字元 F1 0.4803，天花板是 0.9748。} 中間有約 0.49 的空間。
+
+% ===========================================================================
+\section{第二部分：人機判準的分歧}
+
+\subsection{材料的來源}
+
+主線曾以三家廠商的四個前沿商用語言模型，對測試集中 1{,}335 個「有佐證」的段落判斷
+證據品質。使用的模型為 \fn{claude-opus-5}、\fn{claude-sonnet-5}、\fn{gpt-5.6-sol}、
+\fn{gemini-3.7-flash}，提示詞中直接寫入官方準則的三個等級定義，不提供任何範例。
+
+那次實驗的目的是證明某個類別無法被偵測。但這批預測本身是一份\textbf{已經付費、尚未
+被分析}的材料，可以回答一個不同的問題。
+
+\subsection{模型之間比模型與人類更一致}
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lr@{}}
+\toprule
+ & 一致度 \\
+\midrule
+模型 $\leftrightarrow$ 模型（六組配對平均） & \textbf{0.765} \\
+模型 $\leftrightarrow$ 標註者（四個模型平均） & 0.701 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+四個獨立訓練、來自三家不同公司的系統，\textbf{彼此的一致度比任何一個與標註者的一致度
+高出 9\%}。這是「共享同一套讀法」的特徵，不是各自獨立犯錯。
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lrr@{}}
+\toprule
+ & 筆數 & 佔全部的比例 \\
+\midrule
+四個模型完全一致 & 770 & 58\% \\
+\quad ……且與標註一致 & 621 & 47\% \\
+\rowcolor{yellow!15}
+\quad ……且\textbf{四個一起答錯} & \textbf{149} & \textbf{11\%} \\
+模型之間出現分歧 & 565 & 42\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+模型一致時，有 81\% 的機會是對的。剩下的 149 筆是本節的對象。
+
+\subsection{那 149 筆錯得有方向}
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lrrrl@{}}
+\toprule
+正解 & 測試集列數 & 一致但錯 & 佔該類別 & 模型改說什麼 \\
+\midrule
+\rowcolor{yellow!12}
+\fn{Clear} & 1{,}106 & \textbf{119} & 11\% & \textbf{Not Clear $\times$118}, N/A $\times$1 \\
+\fn{Not Clear} & 226 & 27 & 12\% & Clear $\times$24, N/A $\times$3 \\
+\fn{Misleading} & 3 & 3 & \textbf{100\%} & Not Clear $\times$2, Clear $\times$1 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+主要模式是：\textbf{正解是「清楚」，四個模型一致說「不清楚」}（119 筆中的 118 筆）。
+
+\subsection{錯的那批有明確的共同特徵}
+
+與「一致且答對」的 621 筆對照：
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+特徵 & 一致且對 & 一致且錯 & 差異 \\
+\midrule
+列數 & 621 & 149 & \\
+段落長度中位數 & 237 & 171 & $-66$ \\
+佐證跨度長度中位數 & 123 & 88 & $-35$ \\
+\rowcolor{yellow!15}
+每 100 字的數字個數 & 6.18 & \textbf{2.00} & $\mathbf{-4.18}$ \\
+含數字 & 0.868 & 0.544 & $-0.324$ \\
+含年份 & 0.747 & 0.362 & $-0.385$ \\
+含百分比 & 0.314 & 0.074 & $-0.240$ \\
+含計量單位 & 0.639 & 0.362 & $-0.277$ \\
+含金額 & 0.097 & \textbf{0.000} & $-0.097$ \\
+含第三方查證 & 0.180 & 0.107 & $-0.073$ \\
+含負責單位 & 0.174 & 0.128 & $-0.046$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{tcolorbox}[colback=blue!5, colframe=blue!55, title=本支線的核心發現]
+\textbf{模型把「表面具體性」當成判斷證據是否充分的判準；標註者不是。}
+
+\medskip
+當段落裡沒有數字、年份、百分比時，四個模型一致地說「不清楚」，而標註者說「清楚」。
+每 100 字的數字密度從 6.18 掉到 2.00，是所有特徵中差距最大的一項。
+\end{tcolorbox}
+
+這與主線的一項早期發現接上：以官方準則原文列舉的具體性項目手寫成的正規表示式，預測
+\fn{Clear} 的關聯強度（Cramér's V）為 0.348，是所有特徵中最高的。\textbf{模型採用了
+同一個啟發式，但標註者顯然接受不帶數字的證據。}
+
+\subsection{三筆 Misleading 個案}
+
+這三筆是四個模型全部答錯、且錯得完全一致的極端案例。
+
+\paragraph{個案一（id 12772）：正解 Misleading，四個模型都說 Clear}
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}p{2cm}p{12cm}@{}}
+\toprule
+承諾 & 科學基礎減碳目標倡議（SBTi）溫室氣體淨零目標驗證，為臺灣唯一、超前承諾在
+       2045 年即達成淨零目標之電信業者。 \\
+\midrule
+佐證 & 天下雜誌：天下永續公民獎大型企業服務業組前三強……哈佛商業評論：「年度最佳
+       企業」服務業組先鋒獎——首獎……勞動部職安署：國內首家榮獲「健康勞動力永續
+       領航企業——典範獎」電信業…… \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+佐證\textbf{具體、豐富、令人印象深刻，但與碳目標毫無關係}。模型被具體性說服，判為
+「清楚」；標註者看的是相關性，判為「誤導」。\textbf{這正是 \fn{Misleading} 這個類別
+被定義出來要捕捉的失效模式。}
+
+\paragraph{個案二（id 13102）：正解 Misleading，四個模型都說 Not Clear}
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}p{2cm}p{12cm}@{}}
+\toprule
+承諾 & 華南銀行以專業保障客戶權益，透過獎勵金、補助費用等多項獎勵措施鼓勵同仁取得
+       多項國際性專業證照 \\
+\midrule
+佐證 & 透過獎勵金、補助費用等多項獎勵措施鼓勵同仁取得多項國際性專業證照 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{佐證幾乎是承諾的逐字重複}——循環論證。模型只判斷出「資訊不足」，標註者看出
+這是在轉移注意力。
+
+\paragraph{個案三（id 12010）：正解 Misleading，四個模型都說 Not Clear}
+
+承諾是「將永續發展、誠信經營及公平待客原則的推動情形納入董事會績效評估的重要指標」，
+佐證是「建立永續發展委員會之績效考核機制」——兩者都關於治理，但佐證講的是\textbf{
+另一個委員會的另一套機制}，並未支持董事會績效評估這件事。
+
+% ===========================================================================
+\section{兩部分之間的關聯}
+
+這兩項工作看似獨立，但指向同一件事。
+
+\textbf{分歧分析說明了主線為何失敗。} 九種介入推不動子任務\textcircled{3}，不是因為
+模型讀不懂段落——四個前沿模型讀得高度一致。是因為\textbf{模型與標註者使用了不同的
+判準}：模型看表面具體性，標註者看證據與承諾的\textbf{相關性}。
+
+而 \fn{Misleading} 這個類別\textbf{恰恰定義在相關性上}（「與所主張的承諾之間沒有清楚
+關聯」）。這解釋了為什麼它是所有類別中唯一完全不可及的：它要求的正是模型最沒有在做的
+那件事。
+
+\textbf{跨度抽取則提供了處理它的可能路徑。} 若系統能明確標出「承諾是哪一句」與「佐證
+是哪一句」，就可以直接對這兩者計算關聯性，而不是讓模型從整段中隱含地推斷。主線的假設 C
+曾嘗試用語意相似度做這件事並失敗（AUC 0.4671，低於隨機），但那次用的是\textbf{標註提供
+的跨度整串}，未依分隔符切開，也未考慮子句結構。
+
+\begin{tcolorbox}[colback=gray!8, colframe=gray!55]
+換言之：\textbf{主線證明了什麼做不到，本支線指出了為什麼，並提供了一個尚未被嘗試的
+入手點。}
+\end{tcolorbox}
+
+% ===========================================================================
+\section{後續工作}
+
+\subsection{必要的下一步}
+
+\begin{enumerate}[leftmargin=2em, itemsep=4pt]
+  \item \textbf{建立逐子句標註模型}。這是本支線的實質貢獻：中文編碼器加逐子句二元
+        分類頭，在訓練＋驗證集上訓練，測試集僅評估一次。對照組須包含本文的線索詞
+        基線（0.4803）與一個語言模型的零樣本基線。
+  \item \textbf{驗證那 149 筆的標註是否站得住}。目前的解讀假設標註是對的、模型是
+        錯的。若其中有相當比例其實是標註瑕疵，結論會反轉。這需要人工檢視一個抽樣，
+        或請模型提出理由後由人判斷。\textbf{在完成這項之前，第二部分的結論應視為
+        暫定。}
+  \item \textbf{對特徵差異做統計檢定}。目前的數字是描述性的，需要 bootstrap 信賴
+        區間或卡方檢定才能宣稱差異顯著。
+\end{enumerate}
+
+\subsection{值得做但非必要}
+
+\begin{itemize}[leftmargin=2em, itemsep=3pt]
+  \item \textbf{請模型說明判斷理由}。對那 149 筆要求模型解釋，再分析解釋中出現的
+        判準詞彙。這能把「模型看具體性」從推論變成直接證據。
+  \item \textbf{把抽取與分類串起來}。用\textbf{預測的}跨度（而非標註提供的）餵給
+        分類器，測試完整流程。即使分類分數不變，「輸出承諾句、佐證句與品質判斷」的
+        系統仍比只輸出標籤的系統更有用。
+  \item \textbf{對 \fn{evidence\_string} 做同樣的抽取}。框架完全相同，且可與承諾
+        抽取共用模型。
+\end{itemize}
+
+% ===========================================================================
+\section{術語表}
+\label{sec:glossary}
+
+\begin{longtable}{@{}p{4.4cm}p{10.1cm}@{}}
+\toprule
+術語 & 說明 \\
+\midrule
+\endhead
+\textbf{跨度（span）} & 文本中一段連續文字的起訖位置 \\
+\textbf{跨度抽取} & 從一段文字中找出並標出特定跨度的任務 \\
+\textbf{不連續跨度抽取} & 目標由數個不相鄰的片段組成，標準的起訖指標模型無法表達 \\
+\textbf{序列標註} & 對序列中的每個單元各給一個標籤的任務 \\
+\textbf{字元層級 F1} & 以字元為單位計算預測與正解的重疊：精確率與召回率的調和平均 \\
+\textbf{IoU} & 交集除以聯集，另一種重疊度量，比 F1 更嚴格 \\
+\textbf{完全匹配} & 預測與正解逐字完全相同的比例 \\
+\textbf{上界 / 天花板} & 某種化約方式在最理想情況下能達到的最高分 \\
+\textbf{Cramér's V} & 兩個類別變數的關聯強度，0 為無關聯，1 為完全決定 \\
+\textbf{Krippendorff's Alpha} & 衡量多位標註者一致程度的統計量，一般 0.8 以上視為高度一致 \\
+\textbf{零樣本} & 不提供任何訓練範例，僅靠任務描述讓模型作答 \\
+\textbf{編碼器} & 將文字轉換為向量表示的預訓練語言模型 \\
+\textbf{bootstrap} & 以重複抽樣估計統計量不確定範圍的方法 \\
+\bottomrule
+\end{longtable}
+
+% ===========================================================================
+\section{實驗索引}
+
+所有程式與輸出位於 \texttt{research/} 目錄，可完整重現。本支線的兩項工作\textbf{完全
+在 CPU 上完成}，未使用圖形處理器。
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}clp{7.2cm}@{}}
+\toprule
+編號 & 程式 & 對應內容 \\
+\midrule
+28 & \texttt{28\_span\_extraction\_feasibility.py} & 第 3 節：跨度結構、單元選擇、基線 \\
+29 & \texttt{29\_divergence\_analysis.py} & 第 4 節：一致性結構、分歧特徵、個案 \\
+26 & \texttt{26\_frontier\_api\_ceiling.py} & 第 4 節所分析之預測的來源 \\
+27 & \texttt{27\_span\_clean\_redo.py} & 跨度清理方式的驗證（主報告假設 B） \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{評測協定} 第 3 節的所有統計與基線僅使用訓練集與驗證集；測試集的跨度僅用於
+第 3.3 節的結構統計，未用於任何模型選擇。第 4 節分析的是測試集，但不涉及任何模型訓練
+或選擇。
+
+\end{document}
