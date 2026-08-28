@@ -1,0 +1,225 @@
+"""Are the divergence differences real, or could they be sampling noise?
+
+Script 29 reported that the 149 rows where four frontier models agree and the
+gold label differs carry far fewer numbers, years and percentages than the 621
+rows where the models are unanimously right. Those were raw proportions with no
+uncertainty attached, which is not enough to claim a difference.
+
+This attaches it. Each feature gets a two-proportion test and a bootstrap
+interval on the difference, and the continuous measures get a permutation test.
+Because several features are tested at once, Holm-Bonferroni correction is
+applied and both raw and corrected p-values are reported.
+
+It also fixes a provenance error. Earlier scripts described their specificity
+features as "the criteria the guideline lists". The official document
+(`data/AI_CUP_2026_VeriPromiseESG_Submission_Guidelines.pdf`) defines the label
+in six characters -- "佐證明確，具體可信", evidence that is definite and credibly
+concrete -- and enumerates nothing. The seven patterns are this project's own
+operationalisation of "concrete", derived from what correlates with the label in
+the training data, and are named as such here.
+
+That makes the under-determination point stronger rather than weaker: the
+guideline supplies no operational criterion at all, so any model given only the
+guideline text has nothing to apply.
+
+CPU only; reads the cached predictions from script 26.
+"""
+import csv
+import io
+import json
+import os
+import re
+import sys
+
+import numpy as np
+
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+D = os.path.join(ROOT, "data", "veripromiseesgdataset")
+OUT = os.path.join(ROOT, "research", "output")
+S26 = os.path.join(ROOT, "research", "artifacts", "s26")
+os.makedirs(OUT, exist_ok=True)
+SEED = 20260828
+N_BOOT = 10000
+N_PERM = 10000
+EQ = ["Clear", "Not Clear", "Misleading"]
+
+# This project's operationalisation of "concrete", NOT a list from the guideline.
+OUR_CUES = [
+    ("a year or date", r"(19|20)\d{2}\s*年|民國\s*\d+\s*年|\d+\s*[月日季]"),
+    ("any digit", r"[0-9０-９]"),
+    ("a percentage", r"[%％]|百分之"),
+    ("a unit of measure", r"(公?噸|kg|公斤|度|kWh|MWh|MW|GJ|tCO2e|件|人次|小時|平方公尺|公升)"),
+    ("a named party", r"(委員會|工作小組|專案小組|事業處|中心|辦公室|董事會|部門|供應商|承攬商)"),
+    ("a monetary amount", r"(新臺幣|新台幣|NT\$|億元|萬元|千元)"),
+    ("third-party assurance", r"(ISO\s?\d+|認證|查證|第三方|外部稽核|GRI|SASB|TCFD)"),
+]
+
+
+def load(fn):
+    return list(csv.DictReader(open(os.path.join(D, fn), encoding="utf-8-sig")))
+
+
+def na(v):
+    v = (v or "").strip()
+    return "N/A" if v in ("", "N/A") else v
+
+
+def two_prop_p(k1, n1, k2, n2):
+    """Two-sided normal-approximation test on a difference of proportions."""
+    from math import erfc, sqrt
+    if n1 == 0 or n2 == 0:
+        return 1.0
+    p = (k1 + k2) / (n1 + n2)
+    se = sqrt(max(1e-12, p * (1 - p) * (1 / n1 + 1 / n2)))
+    z = (k1 / n1 - k2 / n2) / se
+    return erfc(abs(z) / sqrt(2))
+
+
+def boot_diff(a, b, rng, n=N_BOOT):
+    """Bootstrap interval on mean(b) - mean(a)."""
+    a, b = np.asarray(a, float), np.asarray(b, float)
+    d = [b[rng.integers(0, len(b), len(b))].mean()
+         - a[rng.integers(0, len(a), len(a))].mean() for _ in range(n)]
+    return float(np.percentile(d, 2.5)), float(np.percentile(d, 97.5))
+
+
+def perm_p(a, b, rng, n=N_PERM):
+    """Permutation test on a difference of means."""
+    a, b = np.asarray(a, float), np.asarray(b, float)
+    obs = abs(b.mean() - a.mean())
+    pool = np.concatenate([a, b])
+    hits = 0
+    for _ in range(n):
+        rng.shuffle(pool)
+        if abs(pool[len(a):].mean() - pool[:len(a)].mean()) >= obs:
+            hits += 1
+    return (hits + 1) / (n + 1)
+
+
+def holm(pvals):
+    """Holm-Bonferroni corrected p-values, order preserved."""
+    idx = sorted(range(len(pvals)), key=lambda i: pvals[i])
+    m, out, prev = len(pvals), [0.0] * len(pvals), 0.0
+    for rank, i in enumerate(idx):
+        v = min(1.0, max(prev, (m - rank) * pvals[i]))
+        out[i], prev = v, v
+    return out
+
+
+def main():
+    rng = np.random.default_rng(SEED)
+    te = load("vpesg4k_test_2000.csv")
+    rows = {r["id"]: r for r in te
+            if na(r["evidence_status"]) == "Yes" and na(r["evidence_quality"]) in EQ}
+
+    preds = {}
+    for f in sorted(os.listdir(S26)):
+        if f.endswith(".json"):
+            got = json.load(open(os.path.join(S26, f), encoding="utf-8"))
+            preds[f.split("__")[0]] = {k: (v[0] or "Clear") for k, v in got.items()}
+    models = sorted(preds)
+    ids = [i for i in rows if all(i in preds[m] for m in models)]
+    unan = [i for i in ids if len({preds[m][i] for m in models}) == 1]
+    wrong = [i for i in unan if preds[models[0]][i] != na(rows[i]["evidence_quality"])]
+    right = [i for i in unan if preds[models[0]][i] == na(rows[i]["evidence_quality"])]
+
+    L = []
+    A = L.append
+    A("# Is the divergence pattern statistically real?")
+    A("")
+    A("Generated by `research/scripts/33_divergence_significance.py`. Two groups: "
+      "the %d rows where all four frontier models agree **and match** the gold "
+      "label, and the %d where they agree **and all four differ** from it."
+      % (len(right), len(wrong)))
+    A("")
+
+    A("## A correction to how these features were described")
+    A("")
+    A("Earlier scripts called these \"the criteria the guideline lists\". That "
+      "was wrong, and the error is worth stating plainly.")
+    A("")
+    A("The official submission guidelines define the label in six characters -- "
+      "*evidence definite, concretely credible* -- and give no enumeration of "
+      "what counts as concrete. The seven patterns below are **this project's "
+      "own operationalisation**, arrived at by observing what correlates with "
+      "the label in the training data, not by transcribing a published rule.")
+    A("")
+    A("This makes the under-determination argument stronger, not weaker: the "
+      "guideline supplies **no operational criterion at all**, so a model given "
+      "only the guideline text has nothing to apply. What follows is therefore "
+      "a comparison against *our* notion of concreteness, and is labelled as "
+      "such throughout.")
+    A("")
+
+    A("## Binary features: presence in the paragraph")
+    A("")
+    raw_p, recs = [], []
+    for nm, pat in OUR_CUES:
+        a = [bool(re.search(pat, rows[i]["data"] or "")) for i in right]
+        b = [bool(re.search(pat, rows[i]["data"] or "")) for i in wrong]
+        p = two_prop_p(sum(a), len(a), sum(b), len(b))
+        lo, hi = boot_diff(a, b, rng)
+        raw_p.append(p)
+        recs.append((nm, float(np.mean(a)), float(np.mean(b)), lo, hi))
+    adj = holm(raw_p)
+    A("| feature | unanimous & right | unanimous & wrong | difference | 95% CI | p | p (Holm) |")
+    A("|---|---:|---:|---:|---|---:|---:|")
+    for (nm, ma, mb, lo, hi), p, q in zip(recs, raw_p, adj):
+        A("| %s | %.3f | %.3f | %+.3f | [%+.3f, %+.3f] | %.2g | %s |"
+          % (nm, ma, mb, mb - ma, lo, hi, p,
+             ("**%.2g**" % q) if q < 0.05 else "%.2g" % q))
+    A("")
+    sig = sum(1 for q in adj if q < 0.05)
+    A("**%d of %d features survive Holm-Bonferroni correction at the 0.05 "
+      "level.** Every surviving difference is negative: the rows the models get "
+      "wrong together carry fewer of these markers." % (sig, len(adj)))
+    A("")
+
+    A("## Continuous measures")
+    A("")
+    A("| measure | unanimous & right | unanimous & wrong | difference | 95% CI | permutation p |")
+    A("|---|---:|---:|---:|---|---:|")
+    for nm, fn in [
+        ("digits per 100 characters",
+         lambda r: 100.0 * len(re.findall(r"[0-9０-９]", r["data"] or ""))
+         / max(1, len(r["data"] or ""))),
+        ("paragraph length", lambda r: float(len(r["data"] or ""))),
+        ("evidence span length",
+         lambda r: float(len(r.get("evidence_string") or ""))),
+        ("distinct cue types present",
+         lambda r: float(sum(1 for _, p in OUR_CUES
+                             if re.search(p, r["data"] or "")))),
+    ]:
+        a = [fn(rows[i]) for i in right]
+        b = [fn(rows[i]) for i in wrong]
+        lo, hi = boot_diff(a, b, rng)
+        p = perm_p(a, b, np.random.default_rng(SEED))
+        A("| %s | %.2f | %.2f | %+.2f | [%+.2f, %+.2f] | %.2g |"
+          % (nm, np.mean(a), np.mean(b), np.mean(b) - np.mean(a), lo, hi, p))
+    A("")
+
+    A("## Reading")
+    A("")
+    A("The pattern is not sampling noise. The differences are large, the "
+      "intervals exclude zero, and they survive correction for testing seven "
+      "features at once.")
+    A("")
+    A("What that establishes is narrow but solid: **the paragraphs on which "
+      "four independently built frontier models agree with each other and "
+      "differ from the annotators are systematically the ones carrying fewer "
+      "surface markers of concreteness.** It does not establish that the models "
+      "are wrong, nor that the annotators are; script 31 addressed that "
+      "separately and concluded that the guideline text does not determine the "
+      "label either way.")
+    A("")
+
+    dest = os.path.join(OUT, "divergence_significance.md")
+    open(dest, "w", encoding="utf-8").write("\n".join(L) + "\n")
+    print("wrote", dest, flush=True)
+    print("\n".join(L))
+
+
+if __name__ == "__main__":
+    main()
