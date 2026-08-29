@@ -305,7 +305,12 @@ def main():
     pred_tuned = tuned.argmax(1)
     b = np.array(base["test"])
     eb = np.exp(b - b.max(1, keepdims=True))
-    softmax_conf = (eb / eb.sum(1, keepdims=True)).max(1)
+    softmax_base = (eb / eb.sum(1, keepdims=True)).max(1)
+    # The confidence token is read off the fine-tuned model, so its softmax
+    # baseline has to come from the same model. Comparing a learned token
+    # against the *base* model's softmax would flatter the token for free.
+    et = np.exp(tuned - tuned.max(1, keepdims=True))
+    softmax_tuned = (et / et.sum(1, keepdims=True)).max(1)
 
     err_base = (p_te != np.array(y_te)).astype(int)
     err_tuned = (pred_tuned != np.array(y_te)).astype(int)
@@ -338,18 +343,30 @@ def main():
     A("| test accuracy | %.3f | %.3f |"
       % (1 - err_base.mean(), 1 - err_tuned.mean()))
     A("")
+    A("The accuracy gain is ordinary supervised fine-tuning on %d labelled rows "
+      "and is not attributable to the confidence tokens; it is reported because "
+      "it bears on what the rest of this project has found. The guideline's "
+      "words did not convey the criterion to any model. Labelled examples "
+      "conveyed a usable part of it to this one." % len(trv))
+    A("")
     A("## Ranking the model's own errors")
     A("")
     A("| signal | AUC over all test rows | AUC over the disputed rows |")
     A("|---|---:|---:|")
-    for nm2, sc in [("softmax confidence (base)", -softmax_conf),
+    for nm2, sc in [("softmax confidence, same fine-tuned model", -softmax_tuned),
+                    ("softmax confidence, base model before tuning", -softmax_base),
                     ("confidence token (Self-REF)", -c_token)]:
         a = roc_auc_score(err_tuned, sc) if len(set(err_tuned)) > 1 else float("nan")
         sub = disputed | (err_tuned == 0)
         d = (roc_auc_score(err_tuned[sub], sc[sub])
              if len(set(err_tuned[sub])) > 1 else float("nan"))
         A("| %s | %.4f | %.4f |" % (nm2, a, d))
-    A("| criterion features (script 38) | 0.7937 | -- |")
+    A("| criterion features (script 38) | 0.7937* | -- |")
+    A("")
+    A("*Not directly comparable. Script 38's features rank the errors of a "
+      "different base model -- the fine-tuned Chinese RoBERTa -- so that row "
+      "shows the order of magnitude of a text-side signal, not a head-to-head "
+      "result against this one.")
     A("")
     A("## Does the token flag the disputed rows?")
     A("")
@@ -361,14 +378,39 @@ def main():
     A("")
     A("## Reading")
     A("")
-    A("The prediction under test was that a confidence token learns to detect "
-      "the errors it was trained on -- occasions when the model's own answer "
-      "was wrong -- and that a criterion mismatch does not leave that signature, "
-      "because on those rows the model is confident and consistent rather than "
-      "uncertain. If the token separates the disputed rows no better than "
-      "chance while the text-side features reach 0.794, that is a limit on what "
-      "self-reported confidence can be asked to do, and it is not one the "
-      "original paper could have found on MMLU or GSM8K.")
+    A("**The prediction this script was written to test is wrong.** The "
+      "expectation was that a confidence token, trained on whether the model's "
+      "own answer had been right, would detect capability errors and miss a "
+      "criterion mismatch, because on the disputed rows the model is confident "
+      "and consistent rather than uncertain. It does not miss them: it reaches "
+      "%.4f AUC on those rows and gives them a mean confidence of %.4f against "
+      "%.4f elsewhere."
+      % (roc_auc_score(err_tuned[disputed | (err_tuned == 0)],
+                       -c_token[disputed | (err_tuned == 0)]),
+         c_token[disputed].mean(), c_token[~disputed].mean()))
+    A("")
+    A("The reason it does not is visible in the accuracy row, and it is the "
+      "more interesting half of this result. Fine-tuning on %d labelled rows "
+      "moved the model from %.3f to %.3f. The criterion that no wording of the "
+      "guideline conveyed to any model -- not the published text, not a "
+      "prompt containing it, not the four criteria asked one at a time -- was "
+      "conveyed by examples. Once the model has absorbed part of that "
+      "criterion, its uncertainty tracks it, and the disputed rows are exactly "
+      "where the absorption is thinnest."
+      % (len(trv), 1 - err_base.mean(), 1 - err_tuned.mean()))
+    A("")
+    A("A second correction belongs here. Against a softmax baseline taken from "
+      "the *same* fine-tuned model, the confidence token's advantage is small. "
+      "The large gap is against the base model's softmax, which is not the "
+      "comparison to make when the token is read off the tuned model. This "
+      "does not contradict the original paper, whose datasets and baselines "
+      "differ, but on this task most of what the token provides is available "
+      "from the tuned model's own output distribution.")
+    A("")
+    A("Read against the rest of the project, the finding is consistent and "
+      "narrow: **words did not transmit this criterion and labelled examples "
+      "did.** That is also why a fine-tuned 330M-parameter encoder outscores "
+      "four zero-shot frontier models on the same rows.")
     A("")
     dest = os.path.join(OUT, "self_ref_confidence.md")
     open(dest, "w", encoding="utf-8").write("\n".join(L) + "\n")
