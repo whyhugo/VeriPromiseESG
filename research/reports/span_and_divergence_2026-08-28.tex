@@ -1514,21 +1514,85 @@ GSM8K、MedQA）都是知識或推理任務，\textbf{答錯就等於不會}。�
         共用同一套程式。
 \end{enumerate}
 
-\subsection{仍然缺的實驗}
+\subsection{先前列為「仍然缺」的三項，現況}
 
-以下三項是投稿前應該補上的，都不需要新的資料：
+本節的前一版列出三項應在投稿前補上的實驗。三項都已完成，結果分別寫在下列各節：
+
+\begin{enumerate}[leftmargin=2em, itemsep=4pt]
+  \item \sout{標註器的消融與執行成本表}。\textbf{已完成}，第 \ref{sec:ablation} 節
+        （程式 42）。兩個形式化選擇的效果遠超三種子雜訊帶，編碼器選擇落在帶內；
+        執行成本表已附。
+  \item \sout{開源模型的偏誤複製}。\textbf{已完成}，第 \ref{sec:openrep} 節
+        （程式 43、45）。偏誤複製成立；同一節另記錄了一項因選擇偏誤而必須撤回的推論。
+  \item \sout{棄權層在完整四欄系統上的效果}。\textbf{已完成}，見下一節（程式 46）。
+\end{enumerate}
+
+\subsection{把棄權推廣到整列}
+\label{sec:jointabstain}
+
+第 \ref{sec:selective} 節的棄權層只作用在子任務\textcircled{3}。但實務上稽核者要的
+不是「這一欄可不可信」，而是\textbf{這一段的四個欄位能不能一起相信}。本專案早已有對應
+的量：\textbf{聯合完全正確率}——四個欄位同時正確的段落比例。競賽系統在測試集上是
+\textbf{0.4880}。
+
+比較兩個棄權訊號：
+
+\begin{itemize}[leftmargin=2em, itemsep=3pt]
+  \item \textbf{判準特徵}：第 \ref{sec:consist} 節的特徵，模型在折外資料上擬合來預測
+        \textcircled{3}會不會錯，再套用到整列。這是一次\textbf{遷移}——用一個欄位的
+        錯誤訓練、拿去問四個欄位——報告時如此標示。
+  \item \textbf{結構不一致}：預測出來的四元組有沒有違反標註階層（沒有承諾，其餘三欄
+        就必須是 \fn{N/A}；沒有佐證，品質欄就必須是 \fn{N/A}）。
+        \textbf{不需要模型、不需要訓練、不需要標籤。}
+\end{itemize}
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+覆蓋率 & 判準特徵 & 結構不一致 & 兩者合併 & 隨機（對照） \\
+\midrule
+100\% & 0.4880 & 0.4880 & 0.4880 & 0.4880 \\
+95\% & 0.4984 & 0.5095 & \textbf{0.5132} & 0.4921 \\
+90\% & 0.5061 & 0.5050 & \textbf{0.5228} & 0.4889 \\
+80\% & 0.5100 & 0.5056 & \textbf{0.5325} & 0.4881 \\
+70\% & 0.5300 & 0.5079 & \textbf{0.5443} & 0.4964 \\
+50\% & 0.5660 & 0.5110 & \textbf{0.5830} & 0.4920 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{tcolorbox}[colback=green!5, colframe=green!45, title=同一個觀察支持一個壞動作與一個好動作]
+測試集有 \textbf{89 列（4.5\%）}的預測違反標註階層，而這些列的聯合完全正確率是
+\textbf{0.0000}。
+
+\medskip
+這個 0 不是量出來的，是\textbf{推導出來的}：正解一律符合階層，所以只要預測違反階層，
+預測的四元組就必定與正解的四元組有出入，該列的聯合完全正確必然失敗。上表的 0.0000
+只是算術上的確認。
+
+\medskip
+\textbf{不能推導、但確實重要的是它的實用性}：4.5\% 的列可以\textbf{零成本}標記為必錯
+——不需要模型、不需要訓練、不需要標籤，掃一遍輸出即可。
+
+\medskip
+這補完了主報告留下的半個論證。主報告的核心發現是\textbf{把這些列投影到合法集合會扣分}
+（$-0.0130$），因為投影以稀有類別的召回率換多數類別的精確度。但\textbf{棄權}不需要付
+那個代價，而且移除的是本來就不可能正確的列。\textbf{同一個觀察支持兩種動作，先前的
+發現只否決了其中一種。}
+\end{tcolorbox}
+
+結構訊號在 89 列用盡之後就飽和了，曲線隨即走平；判準特徵可以繼續往下走，兩者合併在
+每一個覆蓋率上都優於單獨使用。
+
+\subsection{現在仍然缺的}
 
 \begin{itemize}[leftmargin=2em, itemsep=4pt]
-  \item \textbf{標註器的消融與執行成本表}。目前只報了最終數字，沒有拆開「整段編碼」、
-        「子句而非句子」、「編碼器選擇」三個設計各自貢獻多少。去年三篇同場次論文都有
-        消融表與 runtime 表，這是審稿人會直接問的。
-  \item \textbf{開源模型的偏誤複製}。目前「模型用表面具體性取代官方判準」這個發現，
-        證據來自四個商用前沿模型。若一個 80 億參數的開源模型顯示出\textbf{相同}的
-        偏誤，就能排除「這是某一家實驗室訓練方式的產物」這個解釋。Qwen3-8B 已在本
-        專案用過，成本很低。
-  \item \textbf{棄權層在完整四欄系統上的效果}。第 \ref{sec:selective} 節只在子任務
-        \textcircled{3}上量測。實務上稽核者要的是整列可信與否，應該把棄權推廣到四個
-        欄位的聯合預測，並報「聯合完全正確率 vs 覆蓋率」。
+  \item \textbf{理由編碼的外部驗證}。第 \ref{sec:coder} 節的人工標籤與正規表示式出自
+        同一人。抽樣與標籤都已存入 \texttt{research/artifacts/s35/}，需要一位未參與
+        撰寫規則的標註者重做一次。
+  \item \textbf{把兩份報告改寫成投稿格式}。目前是研究進度報告的體例；投稿需要壓縮成
+        去年同場次的 7 頁格式。
 \end{itemize}
 
 % ===========================================================================
@@ -1582,6 +1646,7 @@ GSM8K、MedQA）都是知識或推理任務，\textbf{答錯就等於不會}。�
 45 & \texttt{45\_unselected\_comparison.py} & 第 \ref{sec:openrep} 節：未經挑選的公平比較 \\
 42 & \texttt{42\_tagger\_ablation.py} & 第 \ref{sec:ablation} 節：消融、三種子、執行成本 \\
 44 & \texttt{44\_self\_ref\_confidence.py} & 第 \ref{sec:selfref} 節：Self-REF 信心符號 \\
+46 & \texttt{46\_joint\_abstention.py} & 第 \ref{sec:jointabstain} 節：整列棄權 \\
 36 & \texttt{36\_locate\_then\_judge.py} & 第 \ref{sec:ltj} 節：六種輸入條件 \\
 37 & \texttt{37\_llm\_span\_baseline.py} & 第 \ref{sec:llmspan} 節：語言模型跨度抽取基線 \\
 38 & \texttt{38\_selective\_prediction.py} & 第 \ref{sec:selective} 節：棄權層 \\
