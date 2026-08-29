@@ -1066,6 +1066,84 @@ claude-sonnet-5 低 0.095，差距集中在 \fn{Clear}，且它輸出 \fn{Mislea
 而是兩個子任務的困難位於不同層次。}
 \end{tcolorbox}
 
+\paragraph{把這個對比量出來，並推廣到四個子任務}
+\label{sec:crosstask}
+
+上面的說法一直是\textbf{機制上的推論}。程式 39 把它量成兩個數字，而且是在同一批
+報告書、同一批標註者、同一份準則之下——沒有跨資料集的混淆。
+
+\medskip
+\textbf{量一：官方準則的字面文字，離「可用的操作化」有多遠。} 每個子任務取兩組特徵：
+\textbf{逐字組}只含 \texttt{data/DATA.md} 字面寫出的東西；\textbf{延伸組}再加上一個
+細心讀者會在同樣語域下補出來的部分。兩者的落差，就是讀者必須自行補足的量。
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+子任務 & 逐字組 & 延伸組 & 落差 \\
+\midrule
+\textcircled{1} \fn{promise\_status} & $+0.298$ & $+0.430$ & $+0.132$ \\
+\textcircled{2} \fn{evidence\_status} & $+0.375$ & $+0.372$ & $-0.003$ \\
+\rowcolor{yellow!15}
+\textcircled{3} \fn{evidence\_quality} & $\mathbf{+0.002}$ & $+0.377$ & $\mathbf{+0.375}$ \\
+\textcircled{4} \fn{verification\_timeline} & $+0.210$ & $+0.258$ & $+0.048$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+（平衡準確率，隨機校正後 0 為隨機、1 為完美，五折折外。）
+
+\textcircled{3}的逐字組是 $+0.002$——\textbf{就是隨機}。官方為\textcircled{3}寫下的
+字面文字預測力等於零，因為它給的兩個模糊字眼例子（「持續推進」「努力改善」）在語料裡
+一次都沒出現。要讓它變成可用的判準，讀者得自己補上 $+0.375$，是四項中最大的。
+
+\medskip
+\textbf{量二：表面特徵解釋「系統」比解釋「標註者」好多少。} 同一組共用特徵，擬合兩次：
+一次重現正解標籤，一次重現競賽系統的預測。落差大，代表系統在遵循一條標註者沒在用的
+表面規則。
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+ & \textcircled{1} & \textcircled{2} & \textcircled{3} & \textcircled{4} \\
+\midrule
+分歧落差 & $+0.041$ & $+0.171$ & $\mathbf{+0.246}$ & $\mathbf{+0.001}$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{tcolorbox}[colback=green!5, colframe=green!45, title=兩個量測的是不同的東西，分開來比合在一起有用]
+\begin{tabular}{@{}llll@{}}
+\toprule
+子任務 & 難嗎 & 分歧嗎 & 解讀 \\
+\midrule
+\textcircled{1} & 否 & 否 & 已解決，$\alpha=0.977$ \\
+\textcircled{2} & 中等 & 些微 & 可處理 \\
+\textcircled{4} & \textbf{是} & \textbf{否} & 難，但模型與標註者\textbf{一起}失敗 \\
+\rowcolor{yellow!15}
+\textcircled{3} & 是 & \textbf{是} & 難，\textbf{而且雙方回答的不是同一個問題} \\
+\bottomrule
+\end{tabular}
+
+\medskip
+\textbf{\textcircled{4}是關鍵對照組。} 依量一它至少和\textcircled{3}一樣難，分歧卻是
+零：系統與標註者讀著同一批表面證據，都覺得不夠。那是\textbf{普通的難}，而普通的難對
+普通的補救有反應——主辦方自己的基線正好如此，檢索把\textcircled{4}從 0.3090 拉到
+0.4227，把\textcircled{3}只從 0.3549 拉到 0.3599。
+
+\medskip
+所以本節的主張要收窄，也因此更站得住：\textbf{\textcircled{3}不是最難的子任務，而是
+唯一一個困難來自「對問題的分歧」而非「對答案的分歧」的子任務。} 更多資料、檢索與更大
+的模型處理的是第二種困難。
+\end{tcolorbox}
+
+\paragraph{一個必須記錄的修正} 量一的第一版把\textcircled{3}的特徵集寫成「官方判準」，
+但其中兩族（模糊詞表、承諾與佐證的連結）其實是\textbf{本研究自己的操作化}。那會灌水
+正好要被檢驗的那一列——第一版因此得出\textcircled{3}並非最低的結論。改成逐字／延伸
+兩層之後，結論才成立。
+
 \subsection{競賽權重不影響最優系統（本版修正）}
 \label{sec:weights}
 
@@ -1357,11 +1435,17 @@ $(2\times373/(373+2000) + 0)/2 = 0.157$。修正方式是載入後呼叫 \texttt
 25 & \texttt{25\_retrieval\_test\_eval.py}         & 假設 M：測試集實測 \\
 26 & \texttt{26\_frontier\_api\_ceiling.py}        & 假設 N：四個前沿 API 模型 \\
 27 & \texttt{27\_span\_clean\_redo.py}             & 假設 B 以清理後跨度重做 \\
+36 & \texttt{36\_locate\_then\_judge.py}           & 假設 B 以神經網路重做，第 \ref{sec:bclosed} 節 \\
+39 & \texttt{39\_cross\_subtask\_control.py}       & 第 \ref{sec:crosstask} 節：四個子任務的對照 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\paragraph{運算環境} NVIDIA RTX 4090（24GB）雲端執行個體，累計約 11 小時 GPU 時間。
+\paragraph{側線程式} 程式 28--35、37、38 屬於側線報告
+（\texttt{span\_and\_divergence\_2026-08-28.tex}），索引見該文。
+
+\paragraph{運算環境} NVIDIA RTX 4090（24GB）雲端執行個體，累計約 15 小時 GPU 時間；
+程式 39 與獨立評估相關的分析僅使用中央處理器。
 
 \paragraph{評測協定} 所有模型選擇、超參數與門檻值均僅使用訓練集與驗證集的交叉驗證
 決定；測試集僅在最終評估時使用一次。
