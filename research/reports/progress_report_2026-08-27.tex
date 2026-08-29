@@ -1030,6 +1030,67 @@ claude-sonnet-5 低 0.095，差距集中在 \fn{Clear}，且它輸出 \fn{Mislea
 任何方法學會，把它放進未加權平均，量到的就不是系統能力，而是該類別的樣本數。
 \end{tcolorbox}
 
+\subsection{把一個偏誤較弱的模型平均進來——本專案第一個端到端正向結果}
+\label{sec:recombine}
+
+側線報告發現，不同模型對「表面具體性」這個判準的依賴程度\textbf{不同}。若真是如此，
+一個依賴程度不同的模型應該\textbf{錯在不同的列上}，那麼把它混進來就有價值——即使它
+單獨看樣樣都比較差。這是本報告先前一直沒有實測的問題。
+
+\paragraph{做法} 兩個系統：本專案微調的 transformer（程式 36 條件 A），以及零樣本的
+開源模型 Qwen3-8B。四種組合方式，\textbf{所有權重都只在 1{,}345 列折外資料上擬合，
+測試集只用一次}。
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lrrl@{}}
+\toprule
+組合 & macro-F1 & 準確率 & 準確率變化（bootstrap 95\% 信賴區間） \\
+\midrule
+微調 transformer 單獨 & 0.4655 & 0.8052 & --- \\
+Qwen3-8B 單獨 & 0.3914 & 0.7700 & $-0.0352\ [-0.0614,\ -0.0105]$ \\
+\rowcolor{green!12}
+兩者等權平均 & 0.4728 & \textbf{0.8322} & $\mathbf{+0.0270\ [+0.0112,\ +0.0427]}$ \\
+\rowcolor{green!12}
+折外擬合權重 0.45 & \textbf{0.4742} & 0.8300 & $\mathbf{+0.0247\ [+0.0090,\ +0.0390]}$ \\
+折外擬合 stacking & 0.4276 & 0.6824 & $-0.1228\ [-0.1416,\ -0.1049]$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{tcolorbox}[colback=green!5, colframe=green!45, title=準確率確實上升，而 macro-F1 沒有記錄它]
+\textbf{準確率從 0.8052 升到 0.8300，信賴區間不跨零。} 同一組合的 macro-F1 只動
+$+0.0087$，區間跨越零。
+
+\medskip
+折外搜尋把權重放在 \textbf{0.45}——不是端點，而且是放在一個\textbf{每一欄都比
+transformer 差}的模型上（macro-F1 0.3914、平衡準確率 0.3908、鑑別力 $+0.172$ 對
+$+0.461$）。這只有在兩者\textbf{錯的列不同}時才划算。所以那個偏誤兩者都有，但
+\textbf{劑量不同}，而這個差異值得 2.5 個百分點的準確率。
+\end{tcolorbox}
+
+\paragraph{這是第三次出現同一個現象} 本報告的主要發現是「在不平衡的 macro-F1 下，強制
+標籤階層一致會扣分」，機制是以稀有類別的召回率換多數類別的精確度。側線報告的棄權層是
+第二個獨立實例。本節是第三個：
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+介入 & 對使用者看到的決策 & macro-F1 \\
+\midrule
+強制標籤階層一致 & 準確率幾乎不變 & $-0.0130$ \\
+判準式棄權（側線第 5 部分） & 每個覆蓋率的準確率都較高 & 每個覆蓋率都較低 \\
+\rowcolor{yellow!15}
+平均進一個偏誤較弱的模型 & 準確率 $+0.0247$（顯著） & $+0.0087$（不顯著） \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+三個來自完全不同介入的例子指向同一個成因。\textbf{一個把只有 3 筆測試資料的類別，與有
+1{,}106 筆的類別給予同等權重的指標，會持續產生這種分歧}；那是指標的性質，不是這些介入
+的缺陷。
+
 \subsection{macro 平均在這個資料集上不可辯護}
 
 拿掉 \fn{Misleading} 使 macro-F1 動 $+0.1547$、支持度加權 F1 動 $+0.0011$，
@@ -1437,6 +1498,7 @@ $(2\times373/(373+2000) + 0)/2 = 0.157$。修正方式是載入後呼叫 \texttt
 27 & \texttt{27\_span\_clean\_redo.py}             & 假設 B 以清理後跨度重做 \\
 36 & \texttt{36\_locate\_then\_judge.py}           & 假設 B 以神經網路重做，第 \ref{sec:bclosed} 節 \\
 39 & \texttt{39\_cross\_subtask\_control.py}       & 第 \ref{sec:crosstask} 節：四個子任務的對照 \\
+45 & \texttt{45\_unselected\_comparison.py}         & 第 \ref{sec:recombine} 節：公平比較與模型組合 \\
 \bottomrule
 \end{tabular}
 \end{table}

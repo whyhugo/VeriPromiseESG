@@ -859,6 +859,73 @@ sonnet 在爭議列上的正確率：\fn{direct} 0.020、\fn{cot} 0.041、\fn{de
 \textbf{當作資料}補進去（而不是當作文字），或是承認有些列不該回答（第
 \ref{sec:selective} 節）。
 
+\subsubsection{檢定五：這是前沿模型的毛病，還是這個任務的性質？}
+\label{sec:openrep}
+
+到目前為止，「模型用表面具體性取代官方判準」這個結論建立在四個商用模型上。它們來自
+三家廠商，但共享架構家族、來源相近的訓練資料與同一批文獻——說它們互相獨立並不理所當然。
+
+一個開源的 80 億參數模型是\textbf{另一種證人}：規模小一個量級、由第四家訓練、權重可
+檢查、任何人都能重跑。做法與檢定三完全相同（同樣的提示詞、同樣的 349 個段落、同樣的
+自動編碼器），因此數字可以直接並排。
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+Qwen3-8B 引用的判準 & 對照組 & 爭議組 & 差 \\
+\midrule
+缺少具體數字 & 0.055 & 0.315 & $+0.260$ \\
+引用「有具體數據」 & 0.300 & 0.081 & $-0.219$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+說「模糊」時同句也說缺數字的比率是 \textbf{71.9\%}（四個前沿模型在同一批列上是
+84.1\%）。\textbf{偏誤複製成功}，「這是某一家實驗室訓練方式的產物」這個最省力的反駁
+因此站不住。
+
+\begin{tcolorbox}[colback=red!4, colframe=red!50, title=更正：一個被選擇偏誤污染的比較]
+本節的第一版還報告了另一件事：Qwen3-8B 在爭議列上\textbf{答對 40.3\%}，而四個前沿模型
+依定義全部答錯。當時的解讀是「那些列並非無法從文字決定」。
+
+\medskip
+\textbf{那個解讀不成立。} 那 149 列是\textbf{因為四個特定模型全錯}才被挑出來的——這是
+針對它們的對抗性選擇，任何沒有參與挑選的第五個模型在那批列上都自動占便宜。另外兩個
+開源模型把問題攤開了：Qwen3-4B 對全部 349 列\textbf{一律回答 Clear}，卻因此在爭議列上
+拿到 0.799 的「準確率」，那只是基底率本身。
+
+\medskip
+在\textbf{沒有被任何模型挑選過}的全部 1{,}335 列上重測（程式 45），結論完全相反：
+
+\medskip
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+系統 & macro-F1 & 平衡準確率 & 鑑別力 \\
+\midrule
+\rowcolor{green!12}
+我們微調的 transformer & \textbf{0.4655} & \textbf{0.4871} & $+0.461$ \\
+claude-sonnet-5 & 0.4489 & 0.4701 & $+0.441$ \\
+gpt-5.6-sol & 0.4325 & 0.4565 & $+0.467$ \\
+gemini-3.7-flash & 0.4143 & 0.4193 & $+0.435$ \\
+claude-opus-5 & 0.3538 & 0.4391 & $+0.384$ \\
+\rowcolor{yellow!15}
+Qwen3-8B & 0.3914 & 0.3908 & $\mathbf{+0.172}$ \\
+\bottomrule
+\end{tabular}
+
+\medskip
+\textbf{鑑別力}定義為 $P(\text{說 Clear} \mid \text{正解 Clear}) -
+P(\text{說 Clear} \mid \text{正解 Not Clear})$。這一欄專門用來抓「已經不在回答問題」的
+模型：測試集有 83\% 是 \fn{Clear}，一律回答 \fn{Clear} 可得 0.83 的準確率，但鑑別力
+是 0。
+
+\medskip
+\textbf{Qwen3-8B 的鑑別力是全場最低。} 它在爭議列上的優勢是選擇造成的，不是模型的性質。
+本節能主張的因此只剩\textbf{偏誤複製}——那是同一模型內對照組與爭議組的比較，選擇偏誤
+對兩組同向，不受影響。
+\end{tcolorbox}
+
 % ===========================================================================
 \section{第三部分：子句標註模型}
 \label{sec:tagger}
@@ -1049,6 +1116,81 @@ Qwen3-8B，與主報告假設 G 用的同一個，因此兩個零樣本結果可
 樣子}，代價是涵蓋率。只報單一數字會把這個取捨藏起來。
 \end{tcolorbox}
 
+\subsection{消融：哪一個設計選擇在起作用}
+\label{sec:ablation}
+
+本節到此為止只報了最終數字，沒有說明它從哪裡來。建模時做了三個選擇，每一個都只在
+文字裡辯護過，沒有量過：\textbf{單元}用子句而非句子、\textbf{脈絡}把整段編碼一次再
+把每個子句讀出來而非各自編碼、\textbf{編碼器}用 \texttt{chinese-roberta-wwm-ext-large}。
+以下把它們一次拿掉一個，其餘設定完全不動，判定門檻各自重新在折外資料上擬合。
+
+\paragraph{先確定多大的差距才算差距} 本專案先前所有數字都只跑一個隨機種子，讀者無從
+分辨真實差異與雜訊。把已發表的設定用\textbf{三個種子}重跑：
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+欄位 & 字元 F1 平均 & 標準差 & 兩倍標準差（雜訊帶） \\
+\midrule
+承諾抽取 & 0.5889 & 0.0033 & $\pm 0.0066$ \\
+佐證抽取 & 0.6663 & 0.0010 & $\pm 0.0020$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+低於雜訊帶的變動都不應被讀成效果。
+
+\paragraph{一次拿掉一個選擇}
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+變體 & 承諾：字元 F1 & 對已發表 & 佐證：字元 F1 & 對已發表 \\
+\midrule
+\rowcolor{green!12}
+\textbf{已發表}（子句＋整段脈絡＋roberta） & \textbf{0.5889} & --- & \textbf{0.6663} & --- \\
+\rowcolor{yellow!15}
+改用句子單元 & 0.4857 & $\mathbf{-0.1032}$ & 0.6356 & $\mathbf{-0.0307}$ \\
+\rowcolor{yellow!15}
+移除段落脈絡 & 0.5299 & $\mathbf{-0.0590}$ & 0.6425 & $\mathbf{-0.0238}$ \\
+換成 macbert 編碼器 & 0.5823 & $-0.0066$ & 0.6676 & $+0.0013$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{tcolorbox}[colback=green!5, colframe=green!45, title=兩個形式化選擇都站得住，編碼器選擇則不重要]
+\textbf{子句單元與整段脈絡的效果都遠超雜訊帶}（承諾欄位上是 $-0.1032$ 與 $-0.0590$，
+雜訊帶只有 $\pm 0.0066$）；\textbf{換編碼器落在雜訊帶內}。
+
+\medskip
+這正是本節需要的結果：成績來自\textbf{任務的形式化}，不是來自「剛好挑到一個好的預訓練
+模型」。移除段落脈絡時，完全匹配率從 14.1\% 崩到 6.0\%，掉得比字元 F1 更兇——脈絡影響
+的主要是\textbf{邊界的精確度}。
+\end{tcolorbox}
+
+\paragraph{脈絡是怎麼移除的} 不是把子句分開送進模型（那會同時改變批次結構與長度），而是
+\textbf{遮蔽注意力}，讓每個字元只能看到自己所屬子句內的字元。參數量、池化方式與訓練預算
+完全不變，唯一被拿掉的是「往子句外看」的能力。實作後另外驗證過遮罩確實生效：遮掉 77\%
+的注意力配對，同一批輸入的輸出最大變動 0.514。
+
+\paragraph{執行成本} 單張 NVIDIA RTX 4090（24GB）。
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+項目 & 五折訓練 & 推論 & 每千個子句 \\
+\midrule
+已發表設定 & 296 秒 & 41 秒（22{,}055 個子句） & 0.31 秒 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{整個標註器五分鐘訓練完成}，推論成本可忽略。這對「這條路便宜且可重現」的主張很
+重要——去年同場次的三篇論文都報告執行成本，本報告先前沒有。
+
 \subsection{一個必須記錄的修正}
 
 本節的第一版只拿\textbf{子句層級}的線索詞基線（承諾 0.2640、佐證 0.1200）與模型比較，
@@ -1235,6 +1377,66 @@ F & 預測承諾＋佐證 & \textbf{0.4704} & 0.5251 & $+0.0048$ & $[-0.0069,\ +
 
 基準比例是 0.200（總共棄掉兩成），判準訊號棄掉了其中\textbf{43.6\%} 的爭議列。
 
+\subsection{換一種棄權訊號：讓模型自己說「我沒把握」}
+\label{sec:selfref}
+
+上面的判準特徵是從\textbf{文字}算出來的，完全不看模型內部。另一條路線是讓模型自己
+報告信心。Chuang 等人（ICML 2025）提出的 \textbf{Self-REF} 是這條路線目前的代表作：
+在模型的答案後面加兩個特殊符號——\fn{<CN>}（confident，有把握）與 \fn{<UN>}
+（unconfident，沒把握）——並訓練模型在自己答對時吐前者、答錯時吐後者。信心分數取
+
+\[
+c = \frac{P(\texttt{<CN>})}{P(\texttt{<CN>}) + P(\texttt{<UN>})}
+\]
+
+\paragraph{為什麼值得在這個資料集上測} Self-REF 的四個評測資料集（MMLU、OpenbookQA、
+GSM8K、MedQA）都是知識或推理任務，\textbf{答錯就等於不會}。本資料集有第二種錯誤：在
+爭議列上模型並非不會，它有把握、跨廠商一致，只是在套一條標註者沒用的判準。信心符號是
+用「我自己答對了沒」訓出來的——那正是能力錯誤會留下、判準不匹配不會留下的訊號。
+
+\paragraph{做法} 基礎模型 Qwen3-8B，4-bit 量化底座加 LoRA 微調，訓練集是 1{,}345 列
+訓練＋驗證資料。答案設計成\textbf{單一選項字母}，使信心符號固定落在同一個位置，梯度
+遮蔽與分數讀取因此都是精確的而非近似的。依原論文 Algorithm 1，模型答錯的樣本只在信心
+符號上計損失，答案本身被遮掉，避免訓練模型去偏好一個它不該給的答案。
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lrr@{}}
+\toprule
+訊號 & 全測試集 AUC & 爭議列 AUC \\
+\midrule
+同一個微調模型的 softmax & 0.7760 & 0.7261 \\
+基礎模型（微調前）的 softmax & 0.6286 & 0.5717 \\
+\rowcolor{green!12}
+\textbf{信心符號}（Self-REF） & \textbf{0.7841} & \textbf{0.7541} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+爭議列的平均信心 0.523，其餘 1{,}186 列是 0.767。
+
+\begin{tcolorbox}[colback=red!5, colframe=red!50, title=本節的假設被推翻，而推翻它的理由比假設本身重要]
+本研究原本預測\textbf{信心符號抓不到判準不匹配的錯誤}。\textbf{預測錯了}——它在爭議列
+上達到 0.754 的 AUC，並明確給那些列較低的信心。
+
+\medskip
+原因在準確率那一行：LoRA 微調 1{,}345 列，把模型從 \textbf{0.770 推到 0.840}。那條
+判準——公開文件的文字沒有傳達給任何模型、把定義寫進提示詞沒有（主報告假設 G）、把四條
+判準逐題追問也沒有（第 \ref{sec:decomp} 節）——\textbf{被標註範例傳達成功了}。模型吸收
+了其中一部分之後，它的不確定性就跟著那條判準走，而爭議列正是吸收最薄的地方。
+
+\medskip
+\textbf{文字傳不了這條判準，標註範例可以。} 這同時解釋了本專案一個一直沒有解釋的觀察：
+為什麼一個 3 億參數的微調編碼器，會在同一批列上勝過四個零樣本的前沿模型。
+\end{tcolorbox}
+
+\paragraph{一個必須記錄的基線錯誤} 本實驗的第一版拿\textbf{基礎模型}的 softmax 當基線，
+但被排序的錯誤是\textbf{微調後}模型的——那等於白送信心符號一個優勢。改成同一個微調模型
+自己的 softmax 之後，優勢只剩 0.7841 對 0.7760。這不牴觸原論文（資料集與基線都不同），
+但在這個任務上，信心符號提供的資訊大部分已經在微調模型自己的輸出分布裡。第
+\ref{sec:selective} 節開頭那個 0.7937 的判準特徵數字\textbf{不能與此並排比較}，因為它
+排序的是另一個模型（微調的中文 RoBERTa）的錯誤。
+
 \subsection{一個對本節不利、但必須寫出來的結果}
 
 \textbf{判準訊號在準確率上每個覆蓋率都贏，在 macro-F1 上每個覆蓋率都輸}（覆蓋 80\% 時
@@ -1376,6 +1578,10 @@ F & 預測承諾＋佐證 & \textbf{0.4704} & 0.5251 & $+0.0048$ & $[-0.0069,\ +
 35 & \texttt{35\_explanation\_probe.py} & 第 \ref{sec:reasons} 節：檢定三（模型自述的判斷依據） \\
 41 & \texttt{41\_coder\_validation.py} & 第 \ref{sec:coder} 節：自動編碼的人工驗證 \\
 40 & \texttt{40\_criterion\_decomposition.py} & 第 \ref{sec:decomp} 節：檢定四（三種問法） \\
+43 & \texttt{43\_open\_model\_replication.py} & 第 \ref{sec:openrep} 節：檢定五（開源模型複製） \\
+45 & \texttt{45\_unselected\_comparison.py} & 第 \ref{sec:openrep} 節：未經挑選的公平比較 \\
+42 & \texttt{42\_tagger\_ablation.py} & 第 \ref{sec:ablation} 節：消融、三種子、執行成本 \\
+44 & \texttt{44\_self\_ref\_confidence.py} & 第 \ref{sec:selfref} 節：Self-REF 信心符號 \\
 36 & \texttt{36\_locate\_then\_judge.py} & 第 \ref{sec:ltj} 節：六種輸入條件 \\
 37 & \texttt{37\_llm\_span\_baseline.py} & 第 \ref{sec:llmspan} 節：語言模型跨度抽取基線 \\
 38 & \texttt{38\_selective\_prediction.py} & 第 \ref{sec:selective} 節：棄權層 \\
