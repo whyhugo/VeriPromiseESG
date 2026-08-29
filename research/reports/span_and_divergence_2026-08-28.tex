@@ -103,6 +103,13 @@ F1 從最強基線的 0.4434 提升到 \textbf{0.5903}，佐證抽取的完全�
 模型即使拿到官方逐字定義與四個範例，也只做到 0.3038，\textbf{比「整段照抄」還差}。
 
 \medskip
+接著我們試著\textbf{修好}它（第 \ref{sec:decomp} 節）：把官方的四條判準逐字拆成四題，
+強迫模型一條一條回答，再給標籤。\textbf{沒有用。} 在標籤分布穩定、因而可以比較的那個
+模型上，共現率只從 0.876 降到 0.808，準確率幾乎沒動；而單純要求模型「一步一步想」
+（chain-of-thought）反而讓共現率\textbf{上升}到 0.905。也就是說，這個代換\textbf{不是
+提示詞格式造成的}——它撐得住被逐條追問。
+
+\medskip
 兩個延伸實驗把這條支線收尾。第 \ref{sec:ltj} 節用強模型重測「先定位再判斷」，確認
 它不成立——但\textbf{用模型自己預測的跨度並不比讀整段差}，所以多輸出兩個跨度是免費的。
 第 \ref{sec:selective} 節則把診斷變成可用的東西：\textbf{完全不看模型內部、只從段落
@@ -706,6 +713,152 @@ opus-5 92.6\%、sonnet-5 96.8\%、gpt-5.6 89.4\%、gemini-3.7 96.8\%。也就是
 承諾邏輯一致」這類不含關鍵名詞的正面陳述。報告 \texttt{explanation\_probe.md} 附了
 隨機抽樣的理由與其被指派的類別，可供人工核對。gemini 有 9 筆（2.6\%）逾時，已排除。
 
+\subsubsection{檢定三的自動編碼可信嗎}
+\label{sec:coder}
+
+上一節的整個論證，建立在「用正規表示式把模型的理由分類」這一步上。如果分類本身不準，
+那些百分比就沒有意義。所以必須量它。
+
+\paragraph{做法} 從四個模型合計 1{,}387 筆理由中\textbf{隨機抽出 60 筆}，由本研究人工
+逐筆判讀、指派同樣的七個類別，再與程式的自動結果比對。一致程度以 \textbf{Cohen's
+Kappa} 衡量——這是一個把「碰巧一致」扣掉之後的一致度統計量，0 代表等同隨機猜測，
+1 代表完全一致；一般認為 0.8 以上屬於高度一致。
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+類別 & 人工判為有 & 程式判為有 & Cohen's Kappa & 程式漏判 \\
+\midrule
+\rowcolor{green!12}
+\textbf{措辭模糊} & 21 & 20 & \textbf{0.963} & 1 \\
+\rowcolor{green!12}
+\textbf{缺少具體數字} & 25 & 23 & \textbf{0.861} & 3 \\
+\midrule
+引用「有具體數據」 & 30 & 23 & 0.633 & 9 \\
+缺少第三方查證 & 3 & 5 & 0.467 & 1 \\
+細節不足 & 16 & 5 & 0.400 & 11 \\
+與承諾的連結 & 0 & 3 & 0.000 & 0 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{tcolorbox}[colback=green!5, colframe=green!45, title=撐起論證的那兩類站得住，其餘的不行]
+\textbf{檢定三的每一個被引用的數字}——爭議組 0.714 的「缺少數字」引用率、84.1\% 的
+共現率——\textbf{都只建立在「措辭模糊」與「缺少具體數字」這兩類上}，而這兩類的 Kappa
+是 0.963 與 0.861。
+
+\medskip
+其餘四類不可靠，已在本報告中標為\textbf{僅供參考}，不用於任何主張。失效原因是具體的：
+「細節不足」漏判 11 筆，因為理由的寫法是「未提供具體\textbf{專案內容}、\textbf{投入
+資源}」，而程式比對的名詞表裡沒有這兩個詞；「缺少第三方查證」誤判 3 筆，因為理由裡的
+「無法查證」是「無法核實」的一般用法，不是「缺乏外部查證機構」。
+\end{tcolorbox}
+
+\paragraph{兩項必須寫明的限制} 第一，\textbf{人工標籤與正規表示式出自同一人}。因此這
+只能界定「程式有沒有做到作者的意圖」，不能證明那個意圖本身是對的；投稿前應由未參與撰寫
+規則的標註者重做一次，抽樣與人工標籤都已存入 \texttt{research/artifacts/s35/} 以便直接
+接手。第二，\textbf{本研究刻意沒有依這 60 筆去調整規則}——拿同一批樣本調參之後再回報
+一致度，量出來的數字就不再有意義，而撐起論證的那兩類本來就不需要調整。
+
+\subsubsection{檢定四：能不能用提示詞把塌縮修好？}
+\label{sec:decomp}
+
+檢定三顯示模型把官方的四條判準\textbf{塌縮}成同一個表面檢查。那自然引出一個補救想法：
+既然它把四條合成一條，就\textbf{強迫它一條一條回答}。
+
+\paragraph{三種問法，同一批段落、同一批模型}
+
+\begin{itemize}[leftmargin=2em, itemsep=3pt]
+  \item \fn{direct}：一個問題、一個標籤。就是檢定三用的問法（已有快取，可逐列配對）。
+  \item \fn{cot}：\textbf{逐步推理}（chain-of-thought，要求模型先寫出思考過程再作答）。
+        這是\textbf{對照組}。若先前的解釋正確，它\textbf{不應該有幫助}——問題不是模型
+        想得不夠多。
+  \item \fn{decomp}：把 \texttt{DATA.md} 寫下的四條判準\textbf{逐字拆成四題}，先各自
+        作答，再給標籤。四題的中文問法全部引自官方文件，沒有一題是本研究自己加的。
+\end{itemize}
+
+\paragraph{結果一：逐步推理沒有幫助，甚至更糟}
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}llrr@{}}
+\toprule
+模型 & 問法 & 爭議列引用「缺少數字」 & 說「模糊」時同句也說缺數字 \\
+\midrule
+claude-sonnet-5 & \fn{direct} & 0.765 & 0.876 \\
+claude-sonnet-5 & \fn{cot} & 0.752 & \textbf{0.905} \\
+\rowcolor{yellow!12}
+claude-sonnet-5 & \fn{decomp} & 0.705 & 0.808 \\
+\midrule
+gpt-5.6-sol & \fn{direct} & 0.631 & 0.720 \\
+gpt-5.6-sol & \fn{cot} & 0.550 & 0.676 \\
+\rowcolor{gray!15}
+gpt-5.6-sol & \fn{decomp} & 0.174 & 0.186 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+逐步推理在 sonnet 上讓共現率\textbf{上升}（0.876 到 0.905）。把更多推理預算花在同一個
+啟發式裡面，買到的是更有把握地套用它，不是跳出它。
+
+\paragraph{結果二：gpt 那一列看起來很成功，但那是假的}
+
+gpt 的共現率從 0.720 掉到 0.186，乍看是介入奏效。但一個改變提示詞的介入，如果順帶改變
+了模型\textbf{整體上多常說「清楚」}（本報告稱之為\textbf{操作點}，operating point），
+那機制數字就會跟著動，而機制其實沒動。所以必須看標籤分布：
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}llrrrr@{}}
+\toprule
+模型 & 問法 & \fn{Clear} & \fn{Not Clear} & \fn{N/A} & 無法解析 \\
+\midrule
+claude-sonnet-5 & \fn{direct} & 56\% & 43\% & 1\% & 0\% \\
+claude-sonnet-5 & \fn{cot} & 55\% & 41\% & 1\% & 3\% \\
+claude-sonnet-5 & \fn{decomp} & 54\% & 43\% & 0\% & 3\% \\
+\midrule
+\rowcolor{gray!15}
+gpt-5.6-sol & \fn{direct} & 52\% & 43\% & 5\% & 0\% \\
+\rowcolor{gray!15}
+gpt-5.6-sol & \fn{cot} & 32\% & 59\% & 9\% & 0\% \\
+\rowcolor{gray!15}
+gpt-5.6-sol & \fn{decomp} & 40\% & 60\% & 1\% & 0\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+sonnet 的分布幾乎不動，所以它的機制數字可以跨問法比較。gpt 的分布整個位移了
+（\fn{Clear} 從 52\% 到 40\%、\fn{Not Clear} 從 43\% 到 60\%），而且它在\textbf{對照
+列}上的正確率同時從 0.885 掉到 0.705——它不是學會了新判準，是整個變得更愛說「不清楚」。
+\textbf{gpt 這一列因此不列入結論。}
+
+\paragraph{結果三：準確率幾乎沒有動}
+
+sonnet 在爭議列上的正確率：\fn{direct} 0.020、\fn{cot} 0.041、\fn{decomp} 0.041。
+149 列裡從答對 3 列變成答對 6 列。
+
+\begin{tcolorbox}[colback=red!5, colframe=red!50, title=結論：塌縮撐得住被直接問]
+在標籤分布穩定、因而可以比較的那個模型上，強制拆解只把共現率從 0.876 推到 0.808，
+準確率幾乎沒動。
+
+\medskip
+也就是說：\textbf{可以把官方的四條判準逐字拆開、一題一題問，模型還是會用「有沒有數字」
+回答全部四題。} 最直接的證據在拆解後的分項答案裡——同一次回答中，
+「有沒有避免模糊字眼」與「與承諾的連結夠明確嗎」是\textbf{兩條不同的判準}，模型兩題
+都以「缺乏具體頻率與量化指標」「未提供實際執行的風險項目、數據或測試結果」作答。
+
+\medskip
+這把主張推過了\textbf{提示詞格式}這一層。這個代換不是「一次問四件事」造成的假象；它
+在被逐條追問時依然存在，因此問題的位置在\textbf{模型如何表徵這條判準}，而不在判準是
+怎麼被問出口的。
+\end{tcolorbox}
+
+\paragraph{對後續工作的意義} 這個結果排除了一整類補救方向。若代換源自提示詞形式，
+改寫提示詞就能修；既然它撐得住被逐條追問，那麼可行的路只剩兩條：把缺失的判準
+\textbf{當作資料}補進去（而不是當作文字），或是承認有些列不該回答（第
+\ref{sec:selective} 節）。
+
 % ===========================================================================
 \section{第三部分：子句標註模型}
 \label{sec:tagger}
@@ -1221,6 +1374,8 @@ F & 預測承諾＋佐證 & \textbf{0.4704} & 0.5251 & $+0.0048$ & $[-0.0069,\ +
 33 & \texttt{33\_divergence\_significance.py} & 第 4 節分歧特徵的顯著性檢定（Holm 校正） \\
 34 & \texttt{34\_guideline\_criteria\_test.py} & 第 \ref{sec:consist} 節：檢定二（三族判準比較）與出處更正 \\
 35 & \texttt{35\_explanation\_probe.py} & 第 \ref{sec:reasons} 節：檢定三（模型自述的判斷依據） \\
+41 & \texttt{41\_coder\_validation.py} & 第 \ref{sec:coder} 節：自動編碼的人工驗證 \\
+40 & \texttt{40\_criterion\_decomposition.py} & 第 \ref{sec:decomp} 節：檢定四（三種問法） \\
 36 & \texttt{36\_locate\_then\_judge.py} & 第 \ref{sec:ltj} 節：六種輸入條件 \\
 37 & \texttt{37\_llm\_span\_baseline.py} & 第 \ref{sec:llmspan} 節：語言模型跨度抽取基線 \\
 38 & \texttt{38\_selective\_prediction.py} & 第 \ref{sec:selective} 節：棄權層 \\
