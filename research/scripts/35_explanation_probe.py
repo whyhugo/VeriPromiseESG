@@ -76,7 +76,8 @@ SYS = ("你是台灣上市公司永續報告書的稽核專家。"
 # reason is split into segments at sentence ends and contrastive markers, and
 # within a segment everything after a negator counts as negated until the
 # segment ends.
-NEGATORS = r"(未能|未見|未曾|未|沒有|沒|無法|不具|不足|不夠|缺乏|欠缺|欠奉|付之闕如|尚無|並無|沒)"
+NEGATORS = (r"(未能|未見|未曾|未|沒有|沒|無法|尚無|並無|不具|不足|不夠|缺乏|欠缺|"
+            r"欠奉|付之闕如|匱乏|薄弱|有限|無)")   # bare 無 last: 無法 must win
 SEG_SPLIT = r"[。！？!?；;]|但是|但|然而|不過|惟(?!有)|雖然|雖"
 POSITIVE = r"(提供|列出|載明|附有|具備|揭露|說明|提及|已有|有)"
 
@@ -100,10 +101,11 @@ OBJ = {
 # text is vague, it does not say something is missing.
 VAGUE = (r"(模糊|籠統|空泛|含糊|抽象|流於表面|表面|口號|概括|概念性|概念說明|"
          r"僅(泛稱|宣稱|敘述|概述|說明|提及|列出|描述|表示|指出)|停留在)")
-CATS = ([("stated: vague wording", None), ("stated: link to the promise", None)]
-        + [(k, None) for k in ("unstated: no concrete figures", "no timeline",
-                               "insufficient detail", "no third-party assurance")]
-        + [("cites concrete figures present", None)])
+CATS = [(k, None) for k in
+        ("stated: vague wording", "stated: link to the promise",
+         "unstated: no concrete figures", "no timeline",
+         "insufficient detail", "no third-party assurance",
+         "cites concrete figures present")]
 
 
 def code(reason):
@@ -396,9 +398,11 @@ def main():
         if not gw or not gc:
             continue
         raw, cells = [], []
-        for cname, pat in CATS:
-            a = [bool(re.search(pat, d[i][1])) for i in gc]
-            b = [bool(re.search(pat, d[i][1])) for i in gw]
+        ca = {i: code(d[i][1]) for i in gc}
+        cb = {i: code(d[i][1]) for i in gw}
+        for cname, _ in CATS:
+            a = [cname in ca[i] for i in gc]
+            b = [cname in cb[i] for i in gw]
             pooled[cname][0].extend(a)
             pooled[cname][1].extend(b)
             raw.append(two_prop_p(sum(a), len(a), sum(b), len(b)))
@@ -429,6 +433,41 @@ def main():
         A("| %s | %.3f | %.3f | %+.3f | %s |"
           % (cname, ma, mb, mb - ma,
              ("**%.2g**" % q) if q < 0.05 else "%.2g" % q))
+    A("")
+
+    A("## Are the two leading categories the same sentence?")
+    A("")
+    A("`vague wording` is a criterion the organisers state; `no concrete "
+      "figures` is one they never mention. They fire at almost the same rate, "
+      "which would be a coincidence unless the models are saying both in one "
+      "breath. This measures that directly.")
+    A("")
+    A("| group | cites vague wording | of those, also cites missing figures |")
+    A("|---|---:|---:|")
+    for gname, ids in (("control (right)", ctrl), ("disputed (wrong)", wrong)):
+        n = v = 0
+        for m in args.models:
+            d = got[m]
+            for i in ids:
+                if i in d and d[i][1] and "stated: vague wording" in code(d[i][1]):
+                    n += 1
+                    v += int("unstated: no concrete figures" in code(d[i][1]))
+        A("| %s | %d | %.3f |" % (gname, n, v / max(1, n)))
+    A("")
+
+    A("## Is the coder trustworthy?")
+    A("")
+    allr = [d[i][1] for m in args.models for d in [got[m]]
+            for i in probe if i in d and d[i][1]]
+    nocat = sum(1 for r in allr if not code(r))
+    A("Of %d coded reasons, %d (%.1f%%) matched no category at all. The "
+      "categories are not mutually exclusive, and a reason can invoke several."
+      % (len(allr), nocat, 100.0 * nocat / max(1, len(allr))))
+    A("")
+    A("A sample, so the coding can be checked by eye:")
+    A("")
+    for r in allr[::max(1, len(allr) // 6)][:6]:
+        A("- `%s` -- %s" % (", ".join(sorted(code(r))) or "(none)", r[:150]))
     A("")
 
     A("## Sample reasons on the disputed rows")

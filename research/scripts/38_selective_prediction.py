@@ -239,7 +239,7 @@ def main():
           "measuring what it claims to, it should decline them first."
           % int(disputed.sum()))
         A("")
-        A("| signal | share of disputed rows declined at 80%% coverage | "
+        A("| signal | share of disputed rows declined at 80% coverage | "
           "share of all rows |")
         A("|---|---:|---:|")
         for k, (_, s_te) in SIGNALS.items():
@@ -261,6 +261,22 @@ def main():
       "errors are not failures of capability: the model is confident and "
       "consistent, it is applying a criterion the annotators did not use. A "
       "plain capability account predicts confidence should dominate.")
+    A("")
+    A("One result here cuts the other way and has to be read alongside the "
+      "rest. The criterion signal wins on accuracy at every coverage and loses "
+      "on macro-F1 at every coverage. That is not a contradiction; it is the "
+      "same effect this project measured when it forced the label hierarchy to "
+      "be consistent. Declining a row removes it from its class, and the rows "
+      "the criterion features decline are concentrated in `Not Clear`, the "
+      "smaller and harder class. Macro-F1 weights that class equally with "
+      "`Clear`, so shrinking it costs more than the accuracy it buys. Under "
+      "accuracy -- what an auditor reading the kept rows actually experiences "
+      "-- the ordering reverses.")
+    A("")
+    A("Two independent findings in this project therefore have one cause: "
+      "under an imbalanced macro-F1, an intervention that trades rare-class "
+      "coverage for majority-class correctness is penalised even when it "
+      "improves the decisions a user sees.")
     A("")
     dest = os.path.join(OUT, "selective_prediction.md")
     open(dest, "w", encoding="utf-8").write("\n".join(L) + "\n")

@@ -42,8 +42,12 @@ function Invoke-RpRaw {
 
 function Get-RpClean {
     param([string]$Text)
-    $t = $Text -replace "`e\[[0-9;?]*[a-zA-Z]", ""
-    $t = $t -replace "`e\]0;[^`a]*`a", ""
+    # Windows PowerShell 5.1 has no `e escape -- it yields a literal "e", so the
+    # original patterns here matched nothing and every ANSI sequence survived
+    # into the parsed output. Build the escape character explicitly.
+    $ESC = [char]27
+    $t = $Text -replace "$ESC\[[0-9;?]*[a-zA-Z]", ""
+    $t = $t -replace "$ESC\]0;[^$([char]7)]*$([char]7)", ""
     $t = $t -replace "`r", ""
     return $t
 }
@@ -155,4 +159,62 @@ function Get-RpLog {
 function Get-RpGpu {
     $sb = "echo '<<<RPMARK-START>>>'`nnvidia-smi --query-gpu=utilization.gpu,memory.used,memory.total --format=csv,noheader`nps aux | grep -c '[p]ython'`necho '<<<RPMARK-END>>>'`nexit`n"
     return Get-RpBetween -Text (Invoke-RpRaw -Stdin $sb)
+}
+
+function Receive-RpFile {
+    <#  Pull a file back from the pod.
+
+        The proxy gives a pty, and a pty truncates a long base64 stream: an
+        unverified pull of a 65 KB array silently produced a file 165 bytes
+        longer than the original. So the file is fetched in verified chunks --
+        each one md5-checked on both ends and retried on its own -- and only
+        assembled once every chunk matches. Fine for artifacts and reports,
+        not for weights. #>
+    param(
+        [Parameter(Mandatory = $true)][string]$Remote,
+        [Parameter(Mandatory = $true)][string]$Local,
+        [int]$ChunkBytes = 16384,
+        [int]$Retries = 4
+    )
+    $probe = "export PAGER=cat`necho '<<<RPMARK-START>>>'`nwc -c < $Remote`nmd5sum $Remote | cut -d' ' -f1`necho '<<<RPMARK-END>>>'`nexit`n"
+    # Assign before splitting: inline, PowerShell binds -split as a parameter
+    # of Get-RpBetween instead of as the operator.
+    $probeOut = Get-RpBetween -Text (Invoke-RpRaw -Stdin $probe)
+    $info = ($probeOut -split "`n" | ForEach-Object { $_.Trim() })
+    $size = [int]($info | Where-Object { $_ -match '^[0-9]+$' } | Select-Object -First 1)
+    $wantAll = ($info | Where-Object { $_ -match '^[0-9a-f]{32}$' } | Select-Object -First 1)
+    if (-not $size -or -not $wantAll) { throw "cannot stat $Remote" }
+
+    $dir = Split-Path -Parent $Local
+    if ($dir -and -not (Test-Path $dir)) { New-Item -ItemType Directory -Force $dir | Out-Null }
+    $buf = New-Object System.Collections.Generic.List[byte]
+    for ($off = 0; $off -lt $size; $off += $ChunkBytes) {
+        $n = [Math]::Min($ChunkBytes, $size - $off)
+        $cut = "tail -c +$($off + 1) $Remote | head -c $n"
+        $ok = $false
+        for ($try = 1; $try -le $Retries; $try++) {
+            $sb = "export PAGER=cat`necho '<<<RPMARK-START>>>'`n$cut | md5sum | cut -d' ' -f1`n$cut | base64 -w 76`necho`necho '<<<RPMARK-END>>>'`nexit`n"
+            $chunkOut = Get-RpBetween -Text (Invoke-RpRaw -Stdin $sb)
+            $lines = ($chunkOut -split "`n" | ForEach-Object { $_.Trim() } |
+                Where-Object { $_ -match '^[A-Za-z0-9+/=]+$' })
+            if ($lines.Count -lt 2) { continue }
+            $want = ($lines | Where-Object { $_ -match '^[0-9a-f]{32}$' } | Select-Object -First 1)
+            if (-not $want) { continue }
+            $b64 = (($lines | Where-Object { $_ -ne $want }) -join '')
+            if ($b64.Length % 4 -ne 0) { continue }
+            try { $bytes = [System.Convert]::FromBase64String($b64) } catch { continue }
+            if ($bytes.Length -ne $n) { continue }
+            $md5 = [System.Security.Cryptography.MD5]::Create()
+            $got = ([BitConverter]::ToString($md5.ComputeHash($bytes)) -replace '-', '').ToLower()
+            if ($got -ne $want) { continue }
+            $buf.AddRange($bytes)
+            $ok = $true
+            break
+        }
+        if (-not $ok) { throw "chunk at offset $off of $Remote would not verify" }
+    }
+    [System.IO.File]::WriteAllBytes($Local, $buf.ToArray())
+    $final = (Get-FileHash -Algorithm MD5 $Local).Hash.ToLower()
+    if ($final -ne $wantAll) { Remove-Item $Local -Force; throw "assembled file md5 $final != $wantAll" }
+    "OK $Local ($size bytes, md5 $final)"
 }
