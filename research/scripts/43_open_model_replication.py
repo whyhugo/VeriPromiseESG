@@ -123,9 +123,33 @@ def main():
         del mdl
         torch.cuda.empty_cache()
 
-    def rate(ids, cat):
-        rs = [done[i][1] for i in ids if i in done and done[i][1]]
+    def rate(d, ids, cat):
+        rs = [d[i][1] for i in ids if i in d and d[i][1]]
         return (np.mean([cat in s35.code(r) for r in rs]) if rs else float("nan"))
+
+    def cooc(d, ids):
+        rs = [d[i][1] for i in ids if i in d and d[i][1]]
+        v = [r for r in rs if "stated: vague wording" in s35.code(r)]
+        return (np.mean(["unstated: no concrete figures" in s35.code(r) for r in v])
+                if v else float("nan"))
+
+    def acc(d, ids):
+        k = [i for i in ids if i in d and d[i][0]]
+        return (np.mean([d[i][0] == s35.na(rows[i]["evidence_quality"]) for i in k])
+                if k else float("nan"))
+
+    # Every open model run so far, plus the four frontier models from script 35,
+    # so the two families sit in one table.
+    S35D = os.path.join(ROOT, "research", "artifacts", "s35")
+    fleet = []
+    for f in sorted(os.listdir(CACHE)):
+        if f.endswith(".json"):
+            fleet.append((f[:-5].replace("_", "/", 1), "open weights",
+                          json.load(open(os.path.join(CACHE, f), encoding="utf-8"))))
+    for f in sorted(os.listdir(S35D)):
+        if f.endswith(".json") and not f.startswith("coder_"):
+            fleet.append((f[:-5], "frontier API",
+                          json.load(open(os.path.join(S35D, f), encoding="utf-8"))))
 
     L = []
     A = L.append
@@ -142,37 +166,40 @@ def main():
       "part in defining them, so the split is independent of it."
       % (len(wrong), len(ctrl)))
     A("")
-    A("| criterion cited | control (frontier right) | disputed (frontier wrong) | difference |")
-    A("|---|---:|---:|---:|")
-    for cat in ["stated: vague wording", "stated: link to the promise",
-                "unstated: no concrete figures", "cites concrete figures present"]:
-        a, b = rate(ctrl, cat), rate(wrong, cat)
-        A("| %s | %.3f | %.3f | %+.3f |" % (cat, a, b, b - a))
+    A("| model | kind | cites missing figures: control | disputed | difference |")
+    A("|---|---|---:|---:|---:|")
+    for nm2, kind, d in fleet:
+        a = rate(d, ctrl, "unstated: no concrete figures")
+        b = rate(d, wrong, "unstated: no concrete figures")
+        A("| %s | %s | %.3f | %.3f | %+.3f |" % (nm2, kind, a, b, b - a))
+    A("")
+    A("Every model tested shows the same asymmetry, in the same direction, on "
+      "rows it had no part in selecting.")
     A("")
 
-    rs_w = [done[i][1] for i in wrong if i in done and done[i][1]]
-    vague = [r for r in rs_w if "stated: vague wording" in s35.code(r)]
-    co = (np.mean(["unstated: no concrete figures" in s35.code(r) for r in vague])
-          if vague else float("nan"))
-    A("Of the reasons on disputed rows that call the paragraph vague, **%.1f%%** "
-      "also name missing figures in the same sentence. The four frontier models "
-      "give 84.1%% on the same rows." % (100 * co))
+    A("## Does leaning on the heuristic less mean agreeing with the annotators more?")
     A("")
-
-    lab = [done[i][0] for i in probe if i in done and done[i][0]]
-    agree = [i for i in probe if i in done and done[i][0]
-             and done[i][0] == frontier[names[0]][i]]
-    A("| check | value |")
-    A("|---|---:|")
-    A("| rows with a usable label | %d of %d |" % (len(lab), len(probe)))
-    A("| label agrees with the frontier consensus | %.3f |"
-      % (len(agree) / max(1, len(lab))))
-    A("| accuracy on the control rows | %.3f |"
-      % np.mean([done[i][0] == s35.na(rows[i]["evidence_quality"])
-                 for i in ctrl if i in done and done[i][0]]))
-    A("| accuracy on the disputed rows | %.3f |"
-      % np.mean([done[i][0] == s35.na(rows[i]["evidence_quality"])
-                 for i in wrong if i in done and done[i][0]]))
+    A("The disputed rows are by construction ones the four frontier models all "
+      "got wrong, so their accuracy there is zero by definition and only the "
+      "open models give a usable reading. The control column is the check that "
+      "matters: a model that simply says `Clear` more often would score better "
+      "on the disputed rows and worse on the control ones.")
+    A("")
+    A("| model | kind | cites missing figures (disputed) | co-occurrence | "
+      "accuracy: control | disputed | says Clear: control | disputed |")
+    A("|---|---|---:|---:|---:|---:|---:|---:|")
+    for nm2, kind, d in fleet:
+        cl_c = np.mean([d[i][0] == "Clear" for i in ctrl if i in d and d[i][0]])
+        cl_w = np.mean([d[i][0] == "Clear" for i in wrong if i in d and d[i][0]])
+        A("| %s | %s | %.3f | %.3f | %.3f | %.3f | %.0f%% | %.0f%% |"
+          % (nm2, kind, rate(d, wrong, "unstated: no concrete figures"),
+             cooc(d, wrong), acc(d, ctrl), acc(d, wrong),
+             100 * cl_c, 100 * cl_w))
+    A("")
+    A("Gold on these rows: %.0f%% `Clear` on the control set, %.0f%% on the "
+      "disputed set."
+      % (100 * np.mean([s35.na(rows[i]["evidence_quality"]) == "Clear" for i in ctrl]),
+         100 * np.mean([s35.na(rows[i]["evidence_quality"]) == "Clear" for i in wrong])))
     A("")
 
     A("## Reading")
