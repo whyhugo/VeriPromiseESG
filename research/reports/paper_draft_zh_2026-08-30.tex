@@ -1,0 +1,573 @@
+% ---------------------------------------------------------------------------
+% 論文中文草稿（NTCIR-19 AI CUP VeriPromiseESG Track 投稿用）
+% 以 XeLaTeX 編譯：  xelatex paper_draft_zh_2026-08-30.tex
+%
+% 這份草稿的用途是決定「留什麼、怎麼說故事」。兩份進度報告合計約 3,100 行，
+% 投稿只有 7 頁，所以本文的第一要務是取捨；附錄 A 記錄了每一個實驗的去留與理由。
+% ---------------------------------------------------------------------------
+\documentclass[11pt,a4paper]{ctexart}
+
+\usepackage{xeCJK}
+\setCJKmainfont{Noto Serif CJK TC}
+\setCJKsansfont{Noto Sans CJK TC}
+\setCJKmonofont{Noto Sans Mono CJK TC}
+
+\usepackage{geometry}
+\geometry{margin=2.3cm}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{amsmath}
+\usepackage[table]{xcolor}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true, linkcolor=black, urlcolor=blue, citecolor=black}
+\usepackage{tcolorbox}
+\usepackage{tikz}
+\usetikzlibrary{positioning, arrows.meta, fit, backgrounds}
+\usepackage{fancyhdr}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{論文中文草稿}
+\fancyhead[R]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+\newcommand{\fn}[1]{\texttt{#1}}
+
+\title{\textbf{當判準沒有隨資料一起釋出}\\[0.3em]
+       \large 一個 ESG 承諾驗證任務的診斷、可行的替代路徑，與棄權機制}
+\author{AI CUP 2026 VeriPromiseESG 競賽後續學術研究}
+\date{2026 年 8 月 30 日\quad（草稿，用於決定取捨）}
+
+\begin{document}
+\ctexset{contentsname={目錄}, figurename={圖}, tablename={表},
+         abstractname={摘要}, appendixname={附錄}}
+\maketitle
+
+\begin{abstract}
+\noindent
+ESG 永續報告書的「佐證品質」判斷，是 AI CUP 2026 VeriPromiseESG 四個子任務中表現
+最差的一項——官方 baseline macro-F1 僅 0.3599，我們奪冠的系統也只有 0.4642。本文
+不再嘗試提高它，而是問\textbf{困難的來源是什麼}，並證明它與其他三個子任務的困難
+性質不同。
+
+\medskip
+我們以四道相互獨立的檢驗排除了標註雜訊、模型能力與任務形式化三種解釋，並指出
+真正的成因：\textbf{決定標籤的判準沒有隨資料一起釋出}。官方文件寫下的兩項判準
+（措辭是否模糊、與承諾的連結是否明確）重現標註結果的能力只有 0.592 與 0.675 的
+平衡準確率，低於官方\textbf{從未提及}的表面具體性線索（0.690）；官方唯一給出的
+操作範例在 770 個段落中出現 0 次。要求四個前沿模型說明判斷依據後，它們在爭議段落上
+有 71.4\% 提到「缺少數字」——一項沒有任何官方文件寫過的判準；而它們說某段「模糊」時，
+84\% 的情況同一句話裡也在說缺少數字。這個代換在開源權重上複製成功，且在被逐條追問
+四項官方判準時依然存在。
+
+\medskip
+在此診斷之上我們提出三項可行的做法：一個以\textbf{子句}為單位的跨度標註模型，把
+一個從未被任何系統使用的標註資源變成可用任務（承諾抽取字元 F1 0.4434 $\to$ 0.5903）；
+一個\textbf{棄權層}，使用不看模型內部的文字特徵，在 80\% 覆蓋率下把整列聯合正確率
+從 0.4880 提升到 0.5325；以及一個\textbf{異質組合}，把偏誤強度不同的模型平均，使
+準確率從 0.8052 提升到 0.8300。最後我們指出，這三者與競賽系統原本的五折軟投票
+（5-fold soft voting）是同一個機制的不同強度，而其有效程度由成員之間的\textbf{錯誤
+相關係數}決定——這正是本文診斷所量測的量。
+
+\medskip
+\textbf{關鍵詞}：ESG、承諾驗證、標註判準、選擇性預測、集成學習、繁體中文
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+% ===========================================================================
+\section{緒論}
+
+上市公司每年出版永續報告書，其中充滿「我們將於 2030 年達成碳中和」這類承諾。有些
+附有具體佐證，有些只是空泛宣示——後者正是漂綠（greenwashing）。AI CUP 2026
+VeriPromiseESG 把這個問題形式化為四個段落層級的分類子任務，其中\textbf{佐證品質}
+（\fn{evidence\_quality}）權重最高也最難。
+
+我們的系統在該競賽私榜第一名。但四個子任務的成績極不平均，而最差的一項在所有參賽者
+與官方 baseline 上同樣最差。本文處理的問題不是「怎麼再高一點」，而是：
+
+\begin{tcolorbox}[colback=blue!5, colframe=blue!55]
+\textbf{這個子任務的困難來自哪裡？它與其他三個子任務的困難是同一種嗎？如果不是，
+還有什麼是做得到的？}
+\end{tcolorbox}
+
+\paragraph{本文的貢獻}
+\begin{enumerate}[leftmargin=2.2em, itemsep=3pt]
+  \item \textbf{一個可檢驗的診斷}。以四道獨立檢驗排除標註雜訊、模型能力、任務形式化
+        三種解釋，並以模型自述的判斷依據直接證實機制。診斷對其他三個子任務做出預測，
+        該預測被驗證（第 \ref{sec:diag} 節）。
+  \item \textbf{一個可行的替代任務}。資料集提供覆蓋率 100\% 的跨度標註，從未被任何
+        系統（含官方 baseline）使用。我們指出正確的文字單元是\textbf{子句}而非句子，
+        並建成模型（第 \ref{sec:tagger} 節）。
+  \item \textbf{兩個把診斷變成系統行為的機制}：棄權與異質組合（第 \ref{sec:act} 節）。
+  \item \textbf{一個貫穿全文的解釋}：軟投票的有效程度由成員錯誤相關係數決定，而本文
+        的診斷正好量測了它（第 \ref{sec:voting} 節）。
+\end{enumerate}
+
+% ===========================================================================
+\section{任務與資料}
+
+VeriPromiseESG4K 含 4,000 個段落，取自 49 家台灣上市公司的 2024 年永續報告書，
+切分為訓練 1,000／驗證 1,000／測試 2,000。每段有四個分類欄位與\textbf{兩個跨度欄位}。
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}clp{5.6cm}rr@{}}
+\toprule
+ & 欄位 & 問題 & 標註者一致度 $\alpha$ & 我們的 macro-F1 \\
+\midrule
+\textcircled{1} & \fn{promise\_status} & 這段有沒有 ESG 承諾？ & 0.977 & 0.8191 \\
+\textcircled{2} & \fn{evidence\_status} & 承諾有沒有具體佐證？ & 0.962 & 0.7132 \\
+\rowcolor{yellow!15}
+\textcircled{3} & \fn{evidence\_quality} & 佐證品質如何？ & 0.940 & \textbf{0.4642} \\
+\textcircled{4} & \fn{verification\_timeline} & 何時可被驗證？ & 0.955 & 0.6545 \\
+\midrule
+ & \fn{promise\_string} & 承諾是哪一句（跨度） & --- & 未評分 \\
+ & \fn{evidence\_string} & 佐證是哪一句（跨度） & --- & 未評分 \\
+\bottomrule
+\end{tabular}
+\caption{四個子任務與兩個未被使用的跨度欄位。$\alpha$ 為 Krippendorff's Alpha，
+主辦方報告值。}
+\end{table}
+
+\paragraph{兩個必須先講清楚的性質} 第一，\textbf{標註者一致度很高}（\textcircled{3}
+為 0.940），所以困難不能歸因於「標籤太主觀」。第二，\textcircled{3} 的
+\fn{Misleading} 類別在全資料集 4,000 段中\textbf{只有 5 筆}（訓練 1、驗證 1、測試 3），
+而 macro-F1 給它與有 1,106 筆的 \fn{Clear} 同等權重。這個性質在本文多處產生後果。
+
+% ===========================================================================
+\section{診斷：困難的來源}
+\label{sec:diag}
+
+\subsection{論證結構}
+
+我們以四道檢驗逐一排除替代解釋。圖 \ref{fig:arg} 是整條論證的結構。
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[
+  node distance=6mm,
+  box/.style={draw, rounded corners=2pt, align=center, font=\small,
+              inner sep=4pt, minimum height=8mm},
+  kill/.style={box, fill=gray!12},
+  keep/.style={box, fill=green!14, draw=green!50!black},
+  q/.style={box, fill=blue!10, draw=blue!50},
+  ar/.style={-{Stealth[length=2mm]}, gray!70}]
+
+\node[q] (q) {\textbf{為什麼子任務\textcircled{3}這麼難？}};
+\node[kill, below=8mm of q, xshift=-46mm] (a) {解釋一：標籤有雜訊};
+\node[kill, right=5mm of a] (b) {解釋二：模型能力不足};
+\node[kill, right=5mm of b] (c) {解釋三：任務形式化錯誤};
+\node[keep, right=5mm of c] (d) {\textbf{解釋四：判準\\沒有隨資料釋出}};
+
+\node[box, below=7mm of a, fill=gray!5, text width=27mm] (a2)
+  {排除\\標註者 $\alpha=0.940$};
+\node[box, below=7mm of b, fill=gray!5, text width=27mm] (b2)
+  {排除\\四個前沿模型\\ 0.354--0.449，\\低於我們的 0.466};
+\node[box, below=7mm of c, fill=gray!5, text width=27mm] (c2)
+  {排除\\六種輸入條件差異\\皆 $<0.005$，\\而對照組 $-0.0185$};
+\node[box, below=7mm of d, fill=green!8, draw=green!50!black, text width=29mm] (d2)
+  {\textbf{成立}\\官方判準重現正解\\僅 0.592／0.675，\\低於官方未提的 0.690};
+
+\foreach \x in {a,b,c,d} \draw[ar] (q) -- (\x);
+\foreach \x/\y in {a/a2,b/b2,c/c2,d/d2} \draw[ar] (\x) -- (\y);
+\end{tikzpicture}
+\caption{論證結構。三種替代解釋各以一項獨立量測排除，第四種被四項證據支持。}
+\label{fig:arg}
+\end{figure}
+
+\subsection{檢驗一與二：不是雜訊，也不是能力}
+
+標註者一致度 $\alpha = 0.940$，排除雜訊。四個前沿商用模型（\fn{claude-opus-5}、
+\fn{claude-sonnet-5}、\fn{gpt-5.6-sol}、\fn{gemini-3.7-flash}）在測試集 1,335 個
+有佐證的段落上 macro-F1 為 0.354--0.449，\textbf{全部低於我們微調的 3 億參數編碼器
+（0.4655）}，排除能力。
+
+\subsection{檢驗三：不是任務形式化}
+
+資料集提供跨度標註，因此「先定位佐證句、再判斷品質」是可行的重構。我們以同一編碼器、
+同一五折協定比較六種輸入：
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}clrl@{}}
+\toprule
+條件 & 輸入 & macro-F1 & 對 A 的差（95\% 信賴區間）\\
+\midrule
+A & 完整段落（現行做法） & 0.4655 & --- \\
+B & 標註提供的佐證跨度 & 0.4600 & $-0.0056\ [-0.0226, +0.0114]$ \\
+C & 標註提供的承諾＋佐證 & 0.4695 & $+0.0039\ [-0.0120, +0.0193]$ \\
+\rowcolor{yellow!15}
+D & 等長隨機片段（對照） & 0.4470 & $\mathbf{-0.0185\ [-0.0389, -0.0003]}$ \\
+E & \textbf{預測的}佐證跨度 & 0.4665 & $+0.0009\ [-0.0103, +0.0124]$ \\
+F & \textbf{預測的}承諾＋佐證 & 0.4704 & $+0.0048\ [-0.0069, +0.0168]$ \\
+\bottomrule
+\end{tabular}
+\caption{重構任務沒有幫助，而這次的實驗有足夠檢定力證明。}
+\end{table}
+
+關鍵不在跨度條件的數字，而在\textbf{對照組 D 的信賴區間不跨零}——實驗偵測得到 0.018
+量級的差異，而所有跨度條件的差都小於 0.005。這不是「量不出來」，是「效果不存在」。
+
+\paragraph{一個免費的副產物} 條件 F 使用模型\textbf{自己預測}的跨度，成績不低於讀
+整段。一個先找出承諾句與佐證句再判斷品質的系統，分類準確度沒有損失，卻多輸出兩個
+對稽核者有用的欄位。
+
+\subsection{檢驗四：判準沒有隨資料釋出}
+
+官方對 \fn{evidence\_quality} 的說明只有兩處，且都在資料欄位說明中：要求評估
+「語意明確」「易於理解」「未使用模糊字眼（例如：持續推進、努力改善）」，以及
+「與承諾的連結是否明確、細節是否充足」。\textbf{兩項判準都沒有提到數字。}
+
+我們把可能的判準分成三組，在同一批段落上比較它們能重現什麼：
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}llrr@{}}
+\toprule
+組 & 內容（出處） & 重現正解標籤 & 重現模型共識 \\
+\midrule
+A & 措辭是否模糊（\textbf{官方寫的}） & 0.592 & 0.654 \\
+B & 與承諾的連結、細節是否足夠（\textbf{官方寫的}） & 0.675 & 0.708 \\
+\rowcolor{yellow!15}
+C & 表面具體性線索（\textbf{官方從未提及}） & \textbf{0.690} & \textbf{0.786} \\
+\bottomrule
+\end{tabular}
+\caption{平衡準確率，五折折外，隨機水準 0.500。官方寫下的判準，是最不能重現官方
+標註結果的那一組。}
+\end{table}
+
+再加兩項事實：官方唯一給出的操作範例（「持續推進」「努力改善」）在 770 個段落中
+\textbf{出現 0 次}；三組判準\textbf{全都}比較能解釋模型而非標註者。
+
+\subsection{機制的直接證據：問模型自己}
+
+以上皆為迴歸推論。我們進一步要求四個模型在給標籤的同時，用一句話說明判斷依據，
+並以正規表示式自動歸類（兩個承載論證的類別經人工抽查驗證，Cohen's Kappa 為 0.963
+與 0.861）。
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+模型自述的判斷依據 & 對照組 & 爭議組 & Holm 校正 $p$ \\
+\midrule
+官方判準：措辭模糊 & 0.112 & 0.719 & $1.7\times10^{-117}$ \\
+\rowcolor{gray!12}
+官方判準：與承諾的連結 & 0.077 & 0.094 & 0.25（不顯著）\\
+\rowcolor{yellow!15}
+\textbf{官方從未提及：缺少具體數字} & 0.149 & \textbf{0.714} & $2.9\times10^{-100}$ \\
+引用「有具體數據」 & \textbf{0.439} & 0.088 & $1.2\times10^{-45}$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+「措辭模糊」與「缺少數字」的比率幾乎相同，這不是巧合：\textbf{模型說某段「模糊」時，
+同一句話裡有 84.1\% 同時在說「缺少數字」}。模型在\textbf{形式上}遵守了官方寫下的
+判準，卻把「模糊」\textbf{實例化成「沒有數字」}。
+
+\paragraph{兩項排除} 這個代換\textbf{不是提示詞格式造成的}：把官方四項判準逐字拆成
+四題、強迫模型分別作答，共現率只從 0.876 降到 0.808；而單純要求「一步一步想」
+（chain-of-thought）反而讓共現率\textbf{上升}到 0.905。它也\textbf{不是某一家實驗室
+的產物}：一個開源 8B 模型在同一批段落上複製出同樣的不對稱（0.055 $\to$ 0.315）。
+
+\subsection{診斷對其他子任務的預測，以及驗證}
+
+若診斷正確，它應該能說明\textbf{哪些子任務會容易}。官方文件對另外三個子任務都給了
+可在文字表面檢查的線索（\textcircled{1} 五個表示承諾的詞、\textcircled{2} 數據／方法／
+措施、\textcircled{4} 以 2024 年為起算點的明確區間），只有 \textcircled{3} 給的是形容詞。
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+ & \textcircled{1} & \textcircled{2} & \textcircled{3} & \textcircled{4} \\
+\midrule
+官方字面文字能重現正解（隨機校正後） & $+0.298$ & $+0.375$ & $\mathbf{+0.002}$ & $+0.210$ \\
+補上一個可用操作化所需的增量 & $+0.132$ & $-0.003$ & $\mathbf{+0.375}$ & $+0.048$ \\
+\midrule
+表面特徵解釋「系統」勝過解釋「標註者」 & $+0.041$ & $+0.171$ & $\mathbf{+0.246}$ & $\mathbf{+0.001}$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{tcolorbox}[colback=green!5, colframe=green!45, title=兩個軸，而非一個]
+\textcircled{3} 的官方字面文字重現正解只有 $+0.002$——\textbf{等同隨機}。
+
+\medskip
+但 \textcircled{4} 才是關鍵對照組：它一樣難，\textbf{分歧卻是零}——系統與標註者讀著
+同一批表面證據，一起失敗。那是\textbf{普通的困難}，而普通的困難對普通的補救有反應：
+主辦方自己的檢索 baseline 把 \textcircled{4} 從 0.3090 拉到 0.4227，把 \textcircled{3}
+只從 0.3549 拉到 0.3599。
+
+\medskip
+\textbf{\textcircled{3} 不是最難的子任務，而是唯一一個困難來自「對問題的分歧」而非
+「對答案的分歧」的子任務。}
+\end{tcolorbox}
+
+% ===========================================================================
+\section{可行的替代路徑：子句層級的跨度標註}
+\label{sec:tagger}
+
+資料集為每個正例標出承諾句與佐證句，覆蓋率 100\%，但競賽只評分四個分類欄位，
+\textbf{沒有任何系統使用過這兩欄}。
+
+\subsection{關鍵在選對文字單元}
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lrr@{}}
+\toprule
+把跨度化約為單元的邊界對齊率 & 句子為單元 & \textbf{子句為單元} \\
+\midrule
+標註邊界與單元邊界吻合 & 24\% & \textbf{71\%} \\
+化約後可達的字元 F1 上限 & 0.5414 & \textbf{0.9748} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+中文子句以逗號分隔，而標註者的切點大量落在逗號上。改以子句為單元後，任務從困難的
+「自由文字位置抽取」變成標準的「逐子句二元判斷」。
+
+\subsection{模型與結果}
+
+整段編碼一次，再依 tokenizer 的字元偏移把每個子句的向量讀出來，逐子句做二元判斷。
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+系統 & 承諾：字元 F1 & 完全匹配 & 佐證：字元 F1 & 完全匹配 \\
+\midrule
+整段照抄 & 0.4183 & 5.5\% & 0.6004 & 0.4\% \\
+含線索詞的句子（最強啟發式） & 0.4434 & 11.9\% & 0.4004 & 1.7\% \\
+Qwen3-8B 零樣本 & 0.2704 & 1.5\% & 0.5537 & 1.4\% \\
+Qwen3-8B 四個範例 & 0.3038 & 9.5\% & 0.4727 & 6.8\% \\
+\rowcolor{green!12}
+\textbf{子句標註模型} & \textbf{0.5903} & \textbf{14.0\%} & \textbf{0.6666} & \textbf{11.8\%} \\
+\bottomrule
+\end{tabular}
+\caption{語言模型即使拿到官方逐字定義與四個範例，仍低於「整段照抄」；4-shot 之下
+還有 518 個回傳片段是段落裡不存在的文字。}
+\end{table}
+
+\subsection{消融：哪一個設計在起作用}
+
+三個種子的標準差為 0.0033（承諾）與 0.0010（佐證），故雜訊帶為 $\pm 0.0066$／$\pm 0.0020$。
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lrr@{}}
+\toprule
+拿掉一個設計選擇 & 承諾：對完整模型 & 佐證：對完整模型 \\
+\midrule
+\rowcolor{yellow!15}
+改用句子單元 & $\mathbf{-0.1032}$ & $\mathbf{-0.0307}$ \\
+\rowcolor{yellow!15}
+移除段落脈絡（遮蔽跨子句注意力） & $\mathbf{-0.0590}$ & $\mathbf{-0.0238}$ \\
+換成 macbert 編碼器 & $-0.0066$ & $+0.0013$ \\
+\bottomrule
+\end{tabular}
+\caption{兩個形式化選擇遠超雜訊帶，編碼器選擇落在帶內。成績來自任務的形式化，
+不是來自挑到好的預訓練模型。}
+\end{table}
+
+執行成本：單張 RTX 4090，五折訓練 296 秒，每千個子句推論 0.31 秒。
+
+\begin{tcolorbox}[colback=blue!5, colframe=blue!50]
+\textbf{為什麼這個任務成功，而子任務\textcircled{3}失敗？} 同一個理論解釋兩者：
+跨度抽取的判準\textbf{就在文字表面}（措辭特徵），子任務\textcircled{3}的判準不在。
+\end{tcolorbox}
+
+% ===========================================================================
+\section{把診斷變成系統行為}
+\label{sec:act}
+
+\subsection{棄權：知道何時不該回答}
+
+若一部分列無法由系統拿得到的文字決定，正確的行為是\textbf{棄權}。這只有在
+\textbf{不看正解就能認出那些列}時才有用——而第 \ref{sec:diag} 節的判準特徵正是
+從段落算出來的，沒有用到答案。
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+棄權訊號 & 預測「會錯」AUC & 覆蓋 90\% & 覆蓋 80\% & 覆蓋 50\% \\
+\midrule
+模型自己的信心（標準做法） & 0.7688 & 0.8303 & 0.8614 & 0.9251 \\
+\rowcolor{yellow!12}
+\textbf{判準特徵}（不看模型內部） & \textbf{0.7937} & 0.8369 & 0.8680 & 0.9476 \\
+\rowcolor{green!12}
+\textbf{兩者合併} & \textbf{0.8191} & \textbf{0.8453} & \textbf{0.8820} & \textbf{0.9626} \\
+隨機（對照） & 0.4499 & 0.7978 & 0.7949 & 0.7799 \\
+\bottomrule
+\end{tabular}
+\caption{子任務\textcircled{3}的準確率對覆蓋率。不看模型內部的文字特徵，比模型
+自己的信心更會預測它要犯的錯，而且兩者互補。}
+\end{table}
+
+推廣到\textbf{整列}（四欄同時正確）時，另有一個零成本訊號：預測若違反標註階層
+（沒有承諾則其餘三欄必為 \fn{N/A}），該列\textbf{必定}不可能四欄全對——因為正解一律
+符合階層。測試集有 89 列（4.5\%）如此。
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+覆蓋率 & 判準特徵 & 結構不一致 & 兩者合併 & 隨機 \\
+\midrule
+100\% & 0.4880 & 0.4880 & 0.4880 & 0.4880 \\
+80\% & 0.5100 & 0.5056 & \textbf{0.5325} & 0.4881 \\
+50\% & 0.5660 & 0.5110 & \textbf{0.5830} & 0.4920 \\
+\bottomrule
+\end{tabular}
+\caption{整列聯合正確率對覆蓋率。}
+\end{table}
+
+\begin{tcolorbox}[colback=gray!8, colframe=gray!55]
+\textbf{同一個觀察支持一個壞動作與一個好動作。} 把不一致的列\textbf{投影}到合法集合
+會扣 0.0130 macro-F1（以稀有類別召回率換多數類別精確度）；\textbf{棄權}則不必付那個
+代價，移除的還是本來就不可能正確的列。
+\end{tcolorbox}
+
+\subsection{異質組合：平均進一個偏誤較弱的模型}
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lrrl@{}}
+\toprule
+組合 & macro-F1 & 準確率 & 準確率變化（bootstrap 95\% 信賴區間）\\
+\midrule
+微調 transformer 單獨 & 0.4655 & 0.8052 & --- \\
+Qwen3-8B 零樣本單獨 & 0.3914 & 0.7700 & $-0.0352\ [-0.0614, -0.0105]$ \\
+\rowcolor{green!12}
+折外擬合權重 0.45 & \textbf{0.4742} & \textbf{0.8300} & $\mathbf{+0.0247\ [+0.0090, +0.0390]}$ \\
+\bottomrule
+\end{tabular}
+\caption{折外搜尋把權重放在 0.45，而且是放在一個\textbf{每一欄都比 transformer 差}
+的模型上。這只有在兩者錯的列不同時才划算。}
+\end{table}
+
+% ===========================================================================
+\section{一條貫穿全文的線：軟投票何時有效}
+\label{sec:voting}
+
+我們的競賽系統核心是\textbf{五折軟投票}（5-fold soft voting）：訓練 K 個模型、平均
+其機率輸出。本文的三項延伸結果其實都是同一個機制，差別只在\textbf{成員之間錯得有多
+不一樣}。我們可以直接量它——以錯誤向量之間的相關係數 $\phi$ 表示。
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[
+  b/.style={draw, rounded corners=2pt, align=center, font=\small, inner sep=4pt,
+            text width=33mm, minimum height=13mm},
+  ar/.style={-{Stealth[length=2mm]}, gray!70}]
+\node[b, fill=gray!12] (f5) {\textbf{五折軟投票}\\同一模型、同一偏誤\\$\phi$ 最高};
+\node[b, fill=gray!8, right=7mm of f5] (bb) {\textbf{三種 backbone}\\偏誤仍高度共享\\增益 $\approx +0.03$};
+\node[b, fill=red!8, right=7mm of bb] (fr) {\textbf{四個前沿模型}\\$\phi = +0.498$\\\textbf{投票無效}};
+\node[b, fill=green!14, right=7mm of fr] (het) {\textbf{異質組合}\\$\phi = +0.307$\\\textbf{準確率} $+0.0247$};
+\draw[ar] (f5) -- (bb); \draw[ar] (bb) -- (fr); \draw[ar] (fr) -- (het);
+\node[below=3mm of bb, font=\small\itshape, xshift=10mm]
+  {成員錯誤相關係數 $\phi$ 愈低 $\longrightarrow$ 平均愈有價值};
+\end{tikzpicture}
+\caption{軟投票是一個連續的光譜，不是一個技巧。}
+\label{fig:vote}
+\end{figure}
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lrr@{}}
+\toprule
+成員組合 & 錯誤相關 $\phi$ & 平均之後 \\
+\midrule
+\rowcolor{red!8}
+四個前沿模型彼此（平均） & $+0.498$ & 無增益（先前實驗七個模型全負） \\
+\rowcolor{green!12}
+我們的 transformer 與 Qwen3-8B & $\mathbf{+0.307}$ & \textbf{準確率} $\mathbf{+0.0247}$ \\
+\fn{claude-opus-5} 與 Qwen3-8B（最低的一對） & $+0.051$ & 未測 \\
+\bottomrule
+\end{tabular}
+\caption{錯誤相關係數解釋了哪些集成有用。四個前沿模型「彼此的一致度（0.765）高於
+它們與標註者的一致度（0.701）」——它們共享同一個表面具體性代換，所以一起錯。}
+\end{table}
+
+\begin{tcolorbox}[colback=blue!5, colframe=blue!55, title=這條線把競賽系統與診斷接起來]
+五折軟投票之所以有效，是因為\textbf{折與折之間的錯誤不完全相同}；它的效果有上限，
+是因為\textbf{同一個模型的偏誤在每一折都一樣}。本文的診斷指出那個共享偏誤\textbf{
+具體是什麼}（以表面具體性代換官方判準），因此也就指出了\textbf{該找什麼樣的成員}
+——不是更大的模型，而是\textbf{偏誤強度不同}的模型。
+
+\medskip
+\textbf{這使原本的競賽架構從一個工程技巧，變成一個有理論依據的設計原則：}
+成員的選擇應以錯誤相關係數為準，而該係數可由本文的判準分析事先預測。
+\end{tcolorbox}
+
+% ===========================================================================
+\section{結論與限制}
+
+子任務 \textcircled{3} 的困難不在標籤雜訊、模型能力或任務形式化，而在\textbf{決定
+標籤的判準沒有隨資料一起釋出}。資料集論文自述，標註準則是在每週檢討會議中反覆修訂、
+並由永續領域專家裁定後才達到 $\alpha=0.940$——那個過程的產物從未公開。文字傳不了
+這條判準；\textbf{標註範例可以}（以 1,345 列微調 Qwen3-8B，準確率 0.770 $\to$ 0.840）。
+
+\paragraph{限制}
+\begin{itemize}[leftmargin=2em, itemsep=2pt]
+  \item \fn{Misleading} 全資料集僅 5 筆，任何關於該類別的結論都受此限制。
+  \item 模型理由的自動編碼由本文作者撰寫並由同一作者人工驗證；應由未參與的標註者
+        重做。
+  \item 錯誤相關與增益的關係目前只有兩個可用的點，尚不足以稱為曲線。
+  \item 所有結果限於繁體中文 ESG 報告書與此單一資料集。
+\end{itemize}
+
+% ===========================================================================
+\appendix
+\section{每個實驗的去留}
+
+兩份進度報告合計約 3,100 行、46 支程式。下表是投稿取捨。
+
+\begin{longtable}{@{}clp{6.6cm}c@{}}
+\toprule
+程式 & 內容 & 在論文中的角色 & 去留 \\
+\midrule
+\endhead
+26 & 前沿模型天花板 & 檢驗二（排除能力） & \textbf{留} \\
+29 & 分歧結構 0.765 vs 0.701 & 檢驗四動機、第 \ref{sec:voting} 節 & \textbf{留} \\
+33 & 分歧特徵顯著性（Holm） & 檢驗四（支撐） & 留（併表）\\
+34 & 三組判準比較 & \textbf{檢驗四核心} & \textbf{留} \\
+35 & 模型自述判斷依據 & \textbf{機制直證} & \textbf{留} \\
+39 & 跨子任務對照 & 診斷的預測與驗證 & \textbf{留} \\
+40 & 判準拆解、CoT 對照 & 排除「提示詞格式」解釋 & 留（一段）\\
+43 & 開源模型複製 & 排除「單一實驗室」解釋 & 留（一句）\\
+28 & 子句 vs 句子上限 & 第 \ref{sec:tagger} 節動機 & \textbf{留} \\
+32 & 子句標註模型 & \textbf{正面結果一} & \textbf{留} \\
+42 & 消融、三種子、runtime & 場次形式要求 & \textbf{留} \\
+37 & 語言模型跨度 baseline & 第 \ref{sec:tagger} 節對照 & \textbf{留} \\
+36 & 六種輸入條件 & 檢驗三（排除形式化） & \textbf{留} \\
+38 & 選擇性預測 & \textbf{正面結果二} & \textbf{留} \\
+46 & 整列棄權 & 正面結果二（推廣） & \textbf{留} \\
+45 & 異質組合、公平比較 & \textbf{正面結果三}、第 \ref{sec:voting} 節 & \textbf{留} \\
+05,14 & 強制一致的代價 & macro-F1 三實例之一 & 留（一段）\\
+\midrule
+44 & Self-REF 信心符號 & 假設被推翻；支持「範例可傳達」 & 附錄 \\
+41 & 編碼人工驗證 & 限制段 & 附錄 \\
+\midrule
+07 & TF-IDF 跨度探針 & 已被 36 取代 & 不留 \\
+09 & 語意關聯度（假設 C） & 已被 34/35 涵蓋 & 不留 \\
+11 & Qwen 零樣本 & 已被 26/43 涵蓋 & 不留 \\
+19 & LLM 資料擴增 & 負面且無獨立價值 & 不留 \\
+21,22 & LLM 投票權重 & 併入第 \ref{sec:voting} 節一句 & 不留 \\
+23--25 & RAG & 引用官方 baseline 即可 & 不留 \\
+27 & 跨度清理重做 & 已被 36 涵蓋 & 不留 \\
+30,31 & 人工裁決、鄰近一致性 & 訊號弱（7 點差距） & 不留 \\
+\bottomrule
+\end{longtable}
+
+\paragraph{取捨原則} 留下的每一項都在論證鏈上有\textbf{不可替代}的位置：排除一個
+替代解釋、支撐一個正面結果、或滿足場次的形式要求。九項失敗介入中只有「強制一致」
+留下，因為只有它產生了可推廣的方法學結果；其餘八項在論文中以一句話帶過。
+
+\end{document}
