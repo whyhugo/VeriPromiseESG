@@ -7,10 +7,9 @@
 % ---------------------------------------------------------------------------
 \documentclass[11pt,a4paper]{ctexart}
 
-\usepackage{xeCJK}
-\setCJKmainfont{Noto Serif CJK TC}
-\setCJKsansfont{Noto Sans CJK TC}
-\setCJKmonofont{Noto Sans Mono CJK TC}
+% Overleaf 請把編譯器設為 XeLaTeX（Menu -> Compiler -> XeLaTeX）。
+% 字體交給 ctex 自動挑選：明確指定 Noto Serif CJK TC 之類的名稱時，若該環境
+% 沒有安裝該字體，fontspec 會直接中斷編譯，交叉引用便永遠停在 ??。
 
 \usepackage{geometry}
 \geometry{margin=2.3cm}
@@ -48,9 +47,9 @@
 \begin{abstract}
 \noindent
 ESG 永續報告書的「佐證品質」判斷，是 AI CUP 2026 VeriPromiseESG 四個子任務中表現
-最差的一項——官方 baseline macro-F1 僅 0.3599，而一套三種預訓練編碼器 $\times$
-五折交叉驗證的軟投票集成也只有 0.4642。本文不再嘗試提高它，而是問\textbf{困難的來源
-是什麼}，並證明它與其他三個子任務的困難性質不同。
+最差的一項：官方 baseline 的 macro-F1 僅 0.3599，而本文使用的集成系統也只有 0.4642。
+本文不再嘗試提高它，而是問\textbf{困難的來源是什麼}，並證明它與其他三個子任務的困難
+性質不同。
 
 \medskip
 我們以四道相互獨立的檢驗排除了標註雜訊、模型能力與任務形式化三種解釋，並指出
@@ -86,10 +85,8 @@ ESG 永續報告書的「佐證品質」判斷，是 AI CUP 2026 VeriPromiseESG 
 VeriPromiseESG 把這個問題形式化為四個段落層級的分類子任務，其中\textbf{佐證品質}
 （\fn{evidence\_quality}）權重最高也最難。
 
-本文使用的系統是一套\textbf{三種中文預訓練編碼器 $\times$ 五折交叉驗證的軟投票
-集成}（詳見第 \ref{sec:system} 節），它在該競賽私榜取得第一名。名次本身不是本文的
-論點——四個子任務的成績極不平均，而最差的那一項在所有參賽者與官方 baseline 上同樣
-最差。本文處理的問題不是「怎麼再高一點」，而是：
+四個子任務的成績極不平均，而最差的那一項在所有參賽隊伍與官方 baseline 上同樣最差。
+本文處理的問題不是「怎麼再高一點」，而是：
 
 \begin{tcolorbox}[colback=blue!5, colframe=blue!55]
 \textbf{這個子任務的困難來自哪裡？它與其他三個子任務的困難是同一種嗎？如果不是，
@@ -135,26 +132,43 @@ VeriPromiseESG4K 含 4,000 個段落，取自 49 家台灣上市公司的 2024 �
 主辦方報告值。}
 \end{table}
 
-\subsection{本文使用的系統}
+\subsection{本文使用的系統，以及三個一再出現的名詞}
 \label{sec:system}
 
-本文多處以「我們的系統」為比較對象或預測來源，其架構如下：
+本文多處以「本文的系統」為比較對象。為了讓後續每一張表都讀得懂，先把三個名詞說清楚。
+
+\paragraph{編碼器（encoder）} 一個把中文文字轉成數值向量的預訓練神經網路。它事先在
+大量中文語料上訓練過，因此已經「認得中文」，但不知道本任務。要它做本任務，需在其
+輸出端接一個小型分類層，再用本資料集的標註資料繼續訓練——這個步驟稱為\textbf{微調}
+（fine-tuning）。本文使用的三個編碼器各約\textbf{3 億個參數}，屬於中型模型；作為
+對照，本文比較的商用前沿模型參數量通常大兩到三個數量級。
+
+\paragraph{五折交叉驗證（5-fold cross-validation）} 把 2,000 列訓練資料\textbf{平均
+切成五份}，每次拿其中四份訓練、剩下一份預測，輪流五次。好處有二：每一列都得到一個
+「由沒看過它的模型」所做的預測（本文稱之為\textbf{折外預測}，用於誠實地挑選門檻與
+權重）；以及最後會得到\textbf{五個}訓練資料略有不同的模型。
+
+\paragraph{軟投票（soft voting）} 把多個模型的預測合起來。之所以稱「軟」，是因為
+平均的是每個模型輸出的\textbf{類別機率}，而不是它們各自的最終答案（後者稱硬投票）。
+平均機率保留了「模型有多猶豫」這個資訊。
 
 \begin{table}[h]
 \centering\small
 \begin{tabular}{@{}ll@{}}
 \toprule
-成員 & \fn{chinese-roberta-wwm-ext-large}、\fn{chinese-macbert-large}、
-       \fn{Erlangshen-DeBERTa-v2-320M} \\
-訓練 & 每個編碼器在訓練＋驗證 2,000 列上做\textbf{五折交叉驗證}，共 15 個模型 \\
-推論 & 15 個模型對每個測試段落各輸出一組類別機率，\textbf{取平均}後取最大者 \\
-規模 & 每個編碼器約 3 億參數 \\
+成員 & 三種中文預訓練編碼器：\fn{chinese-roberta-wwm-ext-large}、\\
+     & \fn{chinese-macbert-large}、\fn{Erlangshen-DeBERTa-v2-320M} \\
+訓練 & 每個編碼器各做一次五折交叉驗證，因此共有 $3 \times 5 = 15$ 個微調後的模型 \\
+推論 & 15 個模型對每個測試段落各輸出一組類別機率，取平均後選機率最大的類別 \\
 \bottomrule
 \end{tabular}
+\caption{本文使用的系統。後文所有「本文的系統」「我們微調的編碼器」皆指此。}
 \end{table}
 
-這就是所謂\textbf{軟投票}（soft voting）：平均的是\textbf{機率}而非票數，因此保留了
-每個成員的不確定性。第 \ref{sec:voting} 節會回到這個設計。
+\paragraph{什麼叫「同一協定」} 本文多處說某兩個實驗「使用同一編碼器、同一五折協定」，
+意思是：\textbf{兩者的編碼器、資料切分方式、隨機種子、訓練輪數、批次大小與學習率
+全部相同，只有被比較的那一項不同}。這是為了確保觀察到的差異來自那一項，而不是來自
+訓練設定的差異。
 
 \paragraph{兩個必須先講清楚的性質} 第一，\textbf{標註者一致度很高}（\textcircled{3}
 為 0.940），所以困難不能歸因於「標籤太主觀」。第二，\textcircled{3} 的
@@ -204,15 +218,24 @@ VeriPromiseESG4K 含 4,000 個段落，取自 49 家台灣上市公司的 2024 �
 
 \subsection{檢驗一與二：不是雜訊，也不是能力}
 
-標註者一致度 $\alpha = 0.940$，排除雜訊。四個前沿商用模型（\fn{claude-opus-5}、
-\fn{claude-sonnet-5}、\fn{gpt-5.6-sol}、\fn{gemini-3.7-flash}）在測試集 1,335 個
-有佐證的段落上 macro-F1 為 0.354--0.449，\textbf{全部低於我們微調的 3 億參數編碼器
-（0.4655）}，排除能力。
+\paragraph{不是標籤有雜訊} 主辦方報告的標註者一致度為 $\alpha = 0.940$。也就是說
+受過訓練的人類在這個欄位上高度一致——如果標籤只是雜訊，人類彼此也不會一致。困難因此
+不能歸因於「這題本來就沒有答案」。
+
+\paragraph{不是模型能力不足} 我們以三家廠商的四個前沿商用模型
+（\fn{claude-opus-5}、\fn{claude-sonnet-5}、\fn{gpt-5.6-sol}、\fn{gemini-3.7-flash}）
+在測試集中 1,335 個有佐證的段落上作答，不提供任何範例。它們的 macro-F1 為
+0.354--0.449，\textbf{全部低於本文那個只有 3 億參數、但用本資料集微調過的編碼器
+（0.4655）}。參數量大兩三個數量級的模型並沒有比較好，所以困難也不是「模型不夠強」。
 
 \subsection{檢驗三：不是任務形式化}
 
-資料集提供跨度標註，因此「先定位佐證句、再判斷品質」是可行的重構。我們以同一編碼器、
-同一五折協定比較六種輸入：
+第三種可能是\textbf{題目問錯了}：也許不該把整段丟給模型，而該先找出「佐證是哪一句」，
+再只對那一句判斷品質。資料集正好提供了這個跨度標註，所以這個重構做得到。
+
+\medskip
+我們把\textbf{餵給分類器的文字}換成六種，其餘一切維持不變（同一個編碼器、同一組五折
+切分、同一組超參數，見第 \ref{sec:system} 節）：
 
 \begin{table}[h]
 \centering\small
