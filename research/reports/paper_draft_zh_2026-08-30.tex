@@ -169,7 +169,11 @@ Statements（Bender 與 Friedman 2018）都要求資料集發布者記錄標註�
 \section{任務與資料}
 
 VeriPromiseESG4K 含 4,000 個段落，取自 49 家台灣上市公司的 2024 年永續報告書，
-切分為訓練 1,000／驗證 1,000／測試 2,000。每段有四個分類欄位與\textbf{兩個跨度欄位}。
+切分為訓練 1,000／驗證 1,000／測試 2,000。每段有四個分類欄位與\textbf{兩個跨度欄位}
+——所謂\textbf{跨度}（span），是標註者在段落中畫出的一段連續文字，例如「承諾是哪
+一句」。四個分類欄位的標註者一致度以 \textbf{Krippendorff's Alpha}（$\alpha$）
+報告：那是一個把「碰巧一致」扣掉之後才計分的指標，0 等同亂猜、1 代表完全一致，
+0.8 以上一般視為高度可靠。
 
 \begin{table}[h]
 \centering\small
@@ -216,14 +220,24 @@ Krippendorff's Alpha，資料集發布者報告的標註者一致度。\textbf{�
 （fine-tuning）。本文使用的三個編碼器各約\textbf{3 億個參數}，屬於中型模型；作為
 對照，本文比較的商用前沿模型參數量通常大兩到三個數量級。
 
-\paragraph{五折交叉驗證（5-fold cross-validation）} 把 2,000 列訓練資料\textbf{平均
-切成五份}，每次拿其中四份訓練、剩下一份預測，輪流五次。好處有二：每一列都得到一個
+\paragraph{五折交叉驗證（5-fold cross-validation）} 把訓練資料\textbf{平均切成五份}，
+每次拿其中四份訓練、剩下一份預測，輪流五次。四欄系統用的是訓練＋驗證合計 2{,}000 列；
+但本文第 \ref{sec:diag} 節之後那個\textbf{只做 \textcircled{3}} 的單一編碼器，訓練
+資料是這 2{,}000 列中\textbf{有佐證的 1{,}345 列}——因為它只被問這 1{,}345 列在問的
+那個問題。好處有二：每一列都得到一個
 「由沒看過它的模型」所做的預測（本文稱之為\textbf{折外預測}，用於誠實地挑選門檻與
 權重）；以及最後會得到\textbf{五個}訓練資料略有不同的模型。
 
-\paragraph{軟投票（soft voting）} 把多個模型的預測合起來。之所以稱「軟」，是因為
-平均的是每個模型輸出的\textbf{類別機率}，而不是它們各自的最終答案（後者稱硬投票）。
-平均機率保留了「模型有多猶豫」這個資訊。
+\paragraph{集成與軟投票（ensemble, soft voting）} \textbf{集成}是把多個模型的預測
+合起來當成一個系統。之所以稱「軟」投票，是因為平均的是每個模型輸出的\textbf{類別
+機率}，而不是它們各自的最終答案（後者稱硬投票）。平均機率保留了「模型有多猶豫」
+這個資訊。
+
+\paragraph{另外三個後文反覆出現的詞} \textbf{折外預測}（out-of-fold）：五折之中，
+每一列的預測都來自「沒有看過它」的那一折模型，因此可以用來誠實地挑門檻與權重。
+\textbf{消融}（ablation）：把系統的某一個設計選擇拿掉、其餘不動，看成績掉多少，
+用來確認成績來自哪裡。\textbf{棄權}（abstention）：讓系統對沒把握的段落選擇不回答、
+交給人處理，第 \ref{sec:act} 節會用到。
 
 \begin{table}[h]
 \centering\small
@@ -253,16 +267,12 @@ Krippendorff's Alpha，資料集發布者報告的標註者一致度。\textbf{�
 \fn{Clear} 同等計入平均。因此本文多處會看到\textbf{同一個改動讓使用者看到的結果變好、
 macro-F1 卻下降}；每次出現時我們都會同時報告準確率，讓兩者分開判讀。
 
-\subsection{全文只用一把尺}
+\subsection{子任務\textcircled{3}的分類成績只用一把尺}
 \label{sec:scale}
 
-上表最右欄是在\textbf{全部 2,000 段、四個類別}上算的，因為那是四個欄位唯一的共同
-基礎。但本文後續所有比較都聚焦在\textbf{佐證品質}這一個欄位，而該欄位真正要判斷的
-只有\textbf{有佐證的那些段落}——沒有佐證的段落其答案必為 \fn{N/A}，是由前一個欄位
-決定的，混進來只會稀釋要研究的東西。
-
-\medskip
-因此\textbf{第 \ref{sec:diag} 節之後的每一個數字，都在同一把尺上}：
+上表是在\textbf{全部 2,000 段}上算的，因為那是四個欄位唯一的共同基礎。但本文後續
+談 \textcircled{3} 的分類成績時，只看\textbf{有佐證的那些段落}——沒有佐證的段落其
+答案必為 \fn{N/A}，是由前一個欄位決定的，混進來只會稀釋要研究的東西。
 
 \begin{table}[h]
 \centering\small
@@ -270,10 +280,16 @@ macro-F1 卻下降}；每次出現時我們都會同時報告準確率，讓兩�
 \toprule
 評測列 & 測試集中 \fn{evidence\_status}=\fn{Yes} 且品質標籤有效的 \textbf{1{,}335 段} \\
 類別 & \fn{Clear}（1{,}106）、\fn{Not Clear}（226）、\fn{Misleading}（3），共三類 \\
-指標 & macro-F1 為主，準確率並列 \\
+指標 & 準確率與 macro-F1 並列（原因見下） \\
 \bottomrule
 \end{tabular}
 \end{table}
+
+\paragraph{但本文不只有這一把尺，其餘各處另行標明} 這一把只管
+\textcircled{3} 的分類成績。以下幾處的評測列不同，每處都在當地寫明：三組判準的迴歸
+（1{,}332 段，二元）、模型理由的分析（338 段、1{,}343 份理由）、跨欄位對照（四個
+欄位各自的全部有效列）、跨度抽取（另一組指標，見第 \ref{sec:tagger} 節）、整列棄權
+（\textbf{2{,}000 段、四個欄位同時}）。\textbf{凡是不同尺的數字，本文不並排比較。}
 
 \paragraph{本文用到的評測名詞} 以下五個名詞在後文反覆出現，一次講完。
 
@@ -482,14 +498,22 @@ $[-0.0389, -0.0003]$，上界只差 0.0003 就會跨零——而那個 $0.0003$ 
 2 & 其中有佐證、且品質標籤有效（第 \ref{sec:scale} 節那把尺） & 1{,}335 \\
 3 & 四個模型\textbf{都成功回覆}（\fn{gemini-3.7-flash} 有 80 筆 HTTP 503） & 1{,}255 \\
 4 & 四個模型\textbf{答案完全相同} & 742 \\
-5a & \quad ……而且與人類標註相同 $\rightarrow$ \textbf{對照組} & 595 \\
+5a & \quad ……而且與人類標註相同 $\rightarrow$ \textbf{對照組（母體）} & 595 \\
 \rowcolor{yellow!15}
 5b & \quad ……但與人類標註\textbf{不同} $\rightarrow$ \textbf{爭議組} & \textbf{147} \\
+\midrule
+\multicolumn{3}{@{}l@{}}{\textit{以下只適用於「要模型說明理由」的那一批實驗}}\\
+6 & 爭議組\textbf{全取} & 147 \\
+7 & 對照組\textbf{隨機抽樣}（種子固定），四個模型各問一次 & 191 \\
+\rowcolor{gray!12}
+ & \quad $\rightarrow$ \textbf{理由分析的評測列} & \textbf{338} \\
 \bottomrule
 \end{tabular}
 \caption{兩組段落的來歷。模型彼此不一致的段落不列入——那是模型自己就沒共識的段落，
 無法用來談「模型與人的分歧」。\textbf{步驟 3 不可省略}：一個 API 呼叫失敗的段落若把
-空回應當成答案，就會產生「其實只有三個模型作答」的假一致；本文早期版本因此多算了 28 段。}
+空回應當成答案，就會產生「其實只有三個模型作答」的假一致。\textbf{步驟 6--7 只影響
+第 \ref{sec:reasons} 節}：要模型逐段寫理由的成本高，因此對照組取樣本而非母體；
+爭議組因為只有 147 段，全部都問。後文凡是寫「338 段」的地方指的都是這一批。}
 \end{table}
 
 \paragraph{為什麼這兩組特別有用} 兩組都是四個獨立系統一致同意的段落，差別只在
@@ -594,9 +618,20 @@ SBT 要求目標。在財務碳排放面向，成立跨部門的減碳轉型工�
 
 \subsection{檢驗四：判準只被寫成形容詞}
 
-官方對 \fn{evidence\_quality} 的說明只有兩處，且都在資料欄位說明中：要求評估
-「語意明確」「易於理解」「未使用模糊字眼（例如：持續推進、努力改善）」，以及
-「與承諾的連結是否明確、細節是否充足」。\textbf{兩項判準都沒有提到數字。}
+官方對 \fn{evidence\_quality} 的說明只有兩處，且都在資料欄位說明中。合起來是
+\textbf{四項要求}：
+
+\begin{enumerate}[leftmargin=2.2em, itemsep=1pt]
+  \item 語意明確
+  \item 易於理解
+  \item 未使用模糊字眼（唯一附上範例：「持續推進」「努力改善」）
+  \item 與承諾的連結明確、細節充足（見於 \fn{Not Clear} 的類別定義）
+\end{enumerate}
+
+\textbf{這一欄的四項要求都沒有提到數字}（但相鄰欄位有，見下）。後文的 A 組特徵操作化
+第 3 項，B 組操作化第 4 項；第 1、2 項\textbf{沒有任何一組操作化}，因為我們想不出
+不循環的做法——「語意明確」除了同義反覆之外很難寫成規則。第 \ref{sec:reasons} 節的
+「拆成四題分別問」問的就是這四項。
 
 我們把可能的判準分成三組，各自寫成可以機械計算的特徵，再看哪一組最能重現什麼。
 
@@ -856,7 +891,9 @@ $+0.213$。\textbf{那不是地板}——\textcircled{1} 的兩側校正後是 $
 
 \paragraph{支撐這個對照的是另外兩件事} 第一，(a) 這一列：\textcircled{4} 的官方字面
 文字有 $+0.210$，\textcircled{3} 只有 $+0.002$——\textcircled{4} 的判準確實被寫下來
-了。第二，資料集發布者自己的檢索增強 baseline 把 \textcircled{4} 從 0.3090 拉到
+了。第二，資料集發布者自己的\textbf{檢索增強} baseline（retrieval-augmented
+generation，RAG：回答之前先從一批文件中檢索相關段落，連同問題一起餵給模型）把
+\textcircled{4} 從 0.3090 拉到
 0.4227，只把 \textcircled{3} 從 0.3549 拉到 0.3599。（後者是發布者報告的 macro-F1，
 而 \textcircled{3} 的四類 macro-F1 含一個三列的死類別，所以這個對比\textbf{不是
 完全對等的}；我們引用它是因為它是唯一一組由第三方在兩個欄位上做過的同一介入。）
@@ -1190,12 +1227,18 @@ $\mid$ 正解 \fn{Not Clear})，一個放棄作答的系統在這一欄是 0。}
 \section{討論：集成何時有效}
 \label{sec:voting}
 
-本文出現了兩個方向相反的集成結果。四個前沿模型投票\textbf{沒有增益}（多數決 0.4467，
-低於最強成員 \fn{claude-sonnet-5} 的 0.4489）；一個微調 transformer 與一個零樣本開源
+本文出現了兩個方向相反的集成結果。四個前沿模型投票\textbf{沒有增益}——在四個模型
+都作答的 1{,}255 列上，多數決是 0.4449，而同一批列上最強的單一成員
+（\fn{claude-sonnet-5}）是 \textbf{0.4479}，投票比它\textbf{差}；一個微調 transformer 與一個零樣本開源
 模型的組合在\textbf{準確率上}有增益，但如前節所述那是往多數類別的漂移。集成理論對
 此有現成的答案——平均只在成員\textbf{錯得不一樣}時有價值——而本文可以直接量那個量：
 兩個系統的錯誤向量之間的相關係數 $\phi$。
 
+
+\medskip
+$\phi$ 是兩個系統的「這一列答錯了沒」向量之間的相關係數（Matthews 相關係數，
+範圍 $-1$ 到 $+1$）。$\phi$ 接近 1 表示兩者傾向一起錯，接近 0 表示兩者的錯互相獨立
+——集成只在後者有價值。只在兩者都有作答的列上計算。
 
 \begin{table}[h]
 \centering\small
@@ -1204,7 +1247,7 @@ $\mid$ 正解 \fn{Not Clear})，一個放棄作答的系統在這一欄是 0。}
 成員組合 & 錯誤相關 $\phi$ & 平均之後 \\
 \midrule
 \rowcolor{red!8}
-四個前沿模型彼此（6 組配對平均） & $0.537$ & 多數決 0.4467，低於最強成員 0.4489 \\
+四個前沿模型彼此（6 組配對平均） & $0.537$ & 多數決 0.4449，低於同批列最強成員 0.4479 \\
 \rowcolor{green!12}
 我們的 transformer 與 Qwen3-8B & $\mathbf{+0.307}$ & \textbf{準確率} $\mathbf{+0.0247}$ \\
 \fn{claude-opus-5} 與 Qwen3-8B（最低的一對） & $+0.051$ & 未測 \\
@@ -1426,19 +1469,8 @@ in Large Language Models. NeurIPS, 2022.
 John Boccio, Sara Bolouki, Xia Hu, and Helen Zhou. Learning to Route LLMs with
 Confidence Tokens. ICML, 2025.
 
-\bibitem{cui2021} Yiming Cui, Wanxiang Che, Ting Liu, Bing Qin, and Ziqing Yang.
-Pre-Training with Whole Word Masking for Chinese BERT. IEEE/ACM TASLP,
-29:3504--3514, 2021.
-
-\bibitem{krippendorff2011} Klaus Krippendorff. Computing Krippendorff's
-Alpha-Reliability. 2011.
-
 \bibitem{holm1979} Sture Holm. A Simple Sequentially Rejective Multiple Test
 Procedure. Scandinavian Journal of Statistics, 6(2):65--70, 1979.
-
-\bibitem{opitz2024} Juri Opitz. A Closer Look at Classification Evaluation
-Metrics and a Critical Reflection of Common Evaluation Practice. TACL,
-12:820--836, 2024.
 
 \end{thebibliography}
 

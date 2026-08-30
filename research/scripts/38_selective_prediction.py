@@ -352,7 +352,7 @@ def main():
         for f in sorted(os.listdir(S26)):
             if f.endswith(".json"):
                 got = json.load(open(os.path.join(S26, f), encoding="utf-8"))
-                fm[f.split("__")[0]] = {k: (v[0] or "Clear") for k, v in got.items()}
+                fm[f.split("__")[0]] = {k: (v[0] or "") for k, v in got.items()}
         models = sorted(fm)
         idx = {r["id"]: n for n, r in enumerate(te)}
         unan = [i for i in idx if all(i in fm[m_] for m_ in models)

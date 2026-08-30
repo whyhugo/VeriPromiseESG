@@ -258,19 +258,24 @@ def main():
           % (len(eq_rows), sum(1 for r in eq_rows
                                if na(r["evidence_quality"]) == "Misleading")))
         A("")
-        y = [na(r["evidence_quality"]) for r in eq_rows]
-        A("| model | macro-F1 | Clear | Not Clear | **Misleading** | 預測 Misleading 次數 | 抓到 |")
-        A("|---|---:|---:|---:|---:|---:|---:|")
+        A("| model | 計分列數 | macro-F1 | Clear | Not Clear | **Misleading** | 預測 Misleading 次數 | 抓到 |")
+        A("|---|---:|---:|---:|---:|---:|---:|---:|")
         for m in args.models:
             got = run(m, eq_rows, "evidence_quality", args.workers)
-            p = [got.get(r["id"], ["", ""])[0] or "Clear" for r in eq_rows]
+            # a failed call is excluded, not scored as a free `Clear`; the gold
+            # vector has to be rebuilt on the same rows, per model
+            usable = [r for r in eq_rows
+                      if (got.get(r["id"], ["", ""])[0] or "")]
+            y = [na(r["evidence_quality"]) for r in usable]
+            p = [got[r["id"]][0] for r in usable]
             rep = classification_report(y, p, labels=EQ, output_dict=True,
                                         zero_division=0)
             npred = sum(1 for v in p if v == "Misleading")
             hit = sum(1 for a, b in zip(y, p)
                       if a == "Misleading" and b == "Misleading")
-            A("| %s | %.4f | %.4f | %.4f | **%.4f** | %d | **%d / %d** |"
-              % (m, f1_score(y, p, labels=EQ, average="macro", zero_division=0),
+            A("| %s | %d | %.4f | %.4f | %.4f | **%.4f** | %d | **%d / %d** |"
+              % (m, len(usable),
+                 f1_score(y, p, labels=EQ, average="macro", zero_division=0),
                  rep["Clear"]["f1-score"], rep["Not Clear"]["f1-score"],
                  rep["Misleading"]["f1-score"], npred, hit,
                  sum(1 for v in y if v == "Misleading")))

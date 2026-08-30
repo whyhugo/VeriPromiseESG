@@ -94,14 +94,14 @@ Coefficients of the out-of-fold error model, largest first. A positive weight me
 
 ## Are the declined rows the disputed ones?
 
-The 149 rows on which all four frontier models agreed with each other and differed from the gold label were identified in script 33 without reference to this classifier. If the criterion signal is measuring what it claims to, it should decline them first.
+The 147 rows on which all four frontier models agreed with each other and differed from the gold label were identified in script 33 without reference to this classifier. If the criterion signal is measuring what it claims to, it should decline them first.
 
 | signal | share of disputed rows declined at 80% coverage | share of all rows |
 |---|---:|---:|
-| confidence | 0.389 | 0.200 |
-| criterion | 0.436 | 0.200 |
-| both | 0.436 | 0.200 |
-| random | 0.141 | 0.200 |
+| confidence | 0.395 | 0.200 |
+| criterion | 0.442 | 0.200 |
+| both | 0.442 | 0.200 |
+| random | 0.129 | 0.200 |
 
 ## Reading
 

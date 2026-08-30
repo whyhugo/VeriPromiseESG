@@ -73,7 +73,7 @@ def gap(pred, y):
     return (np.mean(a) if a else float("nan")) - (np.mean(b) if b else float("nan"))
 
 
-def row(name, pred, y, rng, ref=None, n_boot=2000):
+def row(name, pred, y, rng, ref=None, n_boot=2000, n_rows=None):
     mf = f1_score(y, pred, average="macro", zero_division=0, labels=[0, 1, 2])
     ba = balanced_accuracy_score(y, pred)
     ac = float(np.mean(np.asarray(pred) == np.asarray(y)))
@@ -96,8 +96,9 @@ def row(name, pred, y, rng, ref=None, n_boot=2000):
                           labels=[0, 1, 2]), lo, hi)
         da = "%+.4f [%+.4f, %+.4f]" % (
             ac - float((r_ == y_).mean()), alo, ahi)
-    return "| %s | %.4f | %.4f | %.4f | %+.3f | %s | %s |" % (
-        name, mf, ba, ac, gap(pred, y), d or "--",
+    return "| %s | %s | %.4f | %.4f | %.4f | %+.3f | %s | %s |" % (
+        name, "%d" % (n_rows if n_rows is not None else len(y)),
+        mf, ba, ac, gap(pred, y), d or "--",
         (da if ref is not None else "--"))
 
 
@@ -127,7 +128,7 @@ def main():
     for f in sorted(os.listdir(S26)):
         if f.endswith(".json"):
             g = json.load(open(os.path.join(S26, f), encoding="utf-8"))
-            frontier[f.split("__")[0]] = {k: (v[0] or "Clear") for k, v in g.items()}
+            frontier[f.split("__")[0]] = {k: (v[0] or "") for k, v in g.items()}
 
     L = []
     A = L.append
@@ -143,19 +144,50 @@ def main():
       "`Clear`, so always answering `Clear` scores %.3f accuracy and 0.000 here."
       % (100 * np.mean(y_te == 0), np.mean(y_te == 0)))
     A("")
-    A("| system | macro-F1 | balanced acc. | accuracy | discrimination | macro-F1 vs fine-tuned | accuracy vs fine-tuned |")
-    A("|---|---:|---:|---:|---:|---|---|")
+    A("| system | rows | macro-F1 | balanced acc. | accuracy | discrimination | macro-F1 vs fine-tuned | accuracy vs fine-tuned |")
+    A("|---|---:|---:|---:|---:|---:|---|---|")
     ref = tf_te.argmax(1)
     A(row("fine-tuned transformer (script 36, condition A)", ref, y_te, rng))
+
+    # a call that did not return is not an answer: that row leaves this model's
+    # evaluation, and its own reference column is recomputed on the same subset
+    def usable(m):
+        return np.array([bool(frontier[m].get(r["id"], "")) for r in te])
+
     for m in sorted(frontier):
-        p = np.array([idx(frontier[m].get(r["id"], "Clear")) for r in te])
-        A(row("%s, zero-shot" % m, p, y_te, rng, ref))
+        k = usable(m)
+        p = np.array([idx(frontier[m].get(r["id"], "")) for r in te])[k]
+        A(row("%s, zero-shot" % m, p, y_te[k], rng, ref[k]))
     A(row("Qwen3-8B, zero-shot", qw_te.argmax(1), y_te, rng, ref))
-    votes = np.zeros((len(te), 4))
+
+    # the vote needs every member to have answered, so it is scored on the
+    # intersection
+    allk = np.ones(len(te), bool)
     for m in frontier:
-        for n, r in enumerate(te):
-            votes[n, idx(frontier[m].get(r["id"], "Clear"))] += 1
-    A(row("four frontier models, majority vote", votes.argmax(1), y_te, rng, ref))
+        allk &= usable(m)
+    votes = np.zeros((int(allk.sum()), 4))
+    sub_te = [r for r, keep in zip(te, allk) if keep]
+    for m in frontier:
+        for n, r in enumerate(sub_te):
+            votes[n, idx(frontier[m][r["id"]])] += 1
+    A(row("four frontier models, majority vote", votes.argmax(1), y_te[allk],
+          rng, ref[allk]))
+    # the vote has to beat its own best member on the vote's own rows
+    best = max(frontier, key=lambda m: f1_score(
+        y_te[allk],
+        np.array([idx(frontier[m][r["id"]]) for r in sub_te]),
+        average="macro", zero_division=0, labels=[0, 1, 2]))
+    A(row("...its best single member (%s) on those same rows" % best,
+          np.array([idx(frontier[best][r["id"]]) for r in sub_te]),
+          y_te[allk], rng, ref[allk]))
+    A("")
+    A("**Rows differ by model on purpose.** `gemini-3.7-flash` returned HTTP 503 "
+      "on %d of these rows; those rows are excluded from its evaluation and from "
+      "the vote, and the fine-tuned reference is recomputed on the same subset "
+      "so each comparison stays paired. Scoring a failed call as `Clear` would "
+      "hand it a correct answer on a set that is %.1f%% `Clear`; scoring it as "
+      "an error would punish it twice."
+      % (len(te) - int(allk.sum()), 100 * float(np.mean(y_te == 0))))
     A("")
 
     A("## Is a differently-biased model worth adding?")
