@@ -152,8 +152,8 @@ macro-F1 給每個類別\textbf{同等權重}，不管該類別有幾筆資料�
 \toprule
 系統 & 總分 & \textcircled{1} & \textcircled{2} & \textcircled{3} & \textcircled{4} \\
 \midrule
-官方參考基線（大型語言模型，無檢索輔助） & 0.4956 & 0.7298 & 0.5969 & 0.3549 & 0.3090 \\
-官方參考基線（大型語言模型 + 檢索輔助）   & 0.5111 & 0.7152 & 0.5958 & 0.3599 & 0.4227 \\
+官方參考 baseline（大型語言模型，無檢索輔助） & 0.4956 & 0.7298 & 0.5969 & 0.3549 & 0.3090 \\
+官方參考 baseline（大型語言模型 + 檢索輔助）   & 0.5111 & 0.7152 & 0.5958 & 0.3599 & 0.4227 \\
 \textbf{我們的系統}                       & \textbf{0.6384} & \textbf{0.8191} & \textbf{0.7132} & \textbf{0.4642} & \textbf{0.6545} \\
 \bottomrule
 \end{tabular}
@@ -193,7 +193,7 @@ macro-F1 給每個類別\textbf{同等權重}，不管該類別有幾筆資料�
 \end{tabular}
 \end{table}
 
-\noindent\textcircled{3}最難，卻權重最高。而且不只我們如此——官方基線在\textcircled{3}
+\noindent\textcircled{3}最難，卻權重最高。而且不只我們如此——官方 baseline 在\textcircled{3}
 也只有 0.3599，是四項中最低；在同一任務家族的國際評測（SemEval-2025 Task 6）中，
 各國參賽隊伍在對應子任務上同樣表現最差。於是核心研究問題是：
 
@@ -467,7 +467,7 @@ bge-m3 餘弦相似度        & 0.6441 & 0.6583 & 0.6341 & \textbf{0.4671} \\
 \end{tabular}
 \end{table}
 
-（基準：整體 $P(\text{Clear}) = 0.832$；關聯強度為 Cramér's V。）
+（基底率 base rate：整體 $P(\text{Clear}) = 0.832$；關聯強度為 Cramér's V。）
 
 \textbf{進一步比較}：把這 14 個特徵餵給簡單邏輯迴歸，與神經網路集成比較
 「Clear vs Not Clear」二元分類：
@@ -481,7 +481,7 @@ bge-m3 餘弦相似度        & 0.6441 & 0.6583 & 0.6341 & \textbf{0.4671} \\
 \midrule
 14 條正規表示式 + 邏輯迴歸 & 0.6518 \\
 我們的三模型五折集成       & 0.6602 \\
-全部猜 Clear（無資訊基線） & 0.4537 \\
+全部猜 Clear（無資訊 baseline） & 0.4537 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -682,7 +682,7 @@ Not Clear  & 451     & 1{,}191 & 0.247 & 0.652 & 0.358 \\
 
 其中專用模型的 $+0.0176$ \textbf{幾乎全部來自子任務\textcircled{4}}
 （$0.5273 \to 0.6225$，\textbf{$+0.0952$}），其餘三個子任務變動均小於 0.006。
-值得注意的是，子任務\textcircled{4}正是官方基線表現最差的項目（0.4227）。
+值得注意的是，子任務\textcircled{4}正是官方 baseline 表現最差的項目（0.4227）。
 
 \subsection{本研究可支撐的四項學術主張}
 

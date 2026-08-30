@@ -139,8 +139,8 @@
 \toprule
 系統 & 總分 & \textcircled{1} & \textcircled{2} & \textcircled{3} & \textcircled{4} \\
 \midrule
-官方基線（LLM，無檢索） & 0.4956 & 0.7298 & 0.5969 & 0.3549 & 0.3090 \\
-官方基線（LLM + 檢索）  & 0.5111 & 0.7152 & 0.5958 & 0.3599 & 0.4227 \\
+官方 baseline（LLM，無檢索） & 0.4956 & 0.7298 & 0.5969 & 0.3549 & 0.3090 \\
+官方 baseline（LLM + 檢索）  & 0.5111 & 0.7152 & 0.5958 & 0.3599 & 0.4227 \\
 \textbf{我們的系統}      & \textbf{0.6384} & 0.8191 & 0.7132 & 0.4642 & 0.6545 \\
 \bottomrule
 \end{tabular}
@@ -333,7 +333,7 @@ Not Clear  & 226     & 0.3131 & 0.4115 & \textbf{0.3556} \\
 \midrule
 KAP: MLLM-assisted OCR Text Enhancement & MRR、AP@1，另有獨立的 Evaluation Methodology 與消融設計 \\
 Ensemble-Based Multi-Specialty Retrieval & Accuracy、F1、Precision，含非監督與監督兩種集成對照 \\
-Translation or Multilingual Retrieval? & MRR@10、NDCG@10、Recall@100，含明確基線與近似上界、配對 $t$ 檢定、錯誤分析、執行時間分析 \\
+Translation or Multilingual Retrieval? & MRR@10、NDCG@10、Recall@100，含明確 baseline 與近似上界、配對 $t$ 檢定、錯誤分析、執行時間分析 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -568,7 +568,7 @@ bge-m3 餘弦相似度 & 0.6441 & 0.6583 & 0.6341 & \textbf{0.4671} \\
 
 依\textbf{本研究自行提出}的具體性線索寫成 12 條正規表示式加 2 個長度特徵（這份
 清單不是官方文件的內容）。\fn{has\_digit} 的 Cramér's V 為
-\textbf{0.348}（有數字時 $P(\text{Clear})=0.934$，無數字時 0.666；基準 0.832）。
+\textbf{0.348}（有數字時 $P(\text{Clear})=0.934$，無數字時 0.666；基底率 0.832）。
 在二元分類上 14 條規則得 0.6518，三模型集成得 0.6602，\textbf{差距僅 0.0084}。
 \textit{此比較後被假設 E 修正。}
 
@@ -820,7 +820,7 @@ Oracle（在同一批資料上挑最佳權重） & $\mathbf{+0.0168}$ \\
 \centering\small
 \begin{tabular}{@{}lrrr@{}}
 \toprule
-子任務 & 隨機基準 & $k=10$ 實際 & 倍數 \\
+子任務 & 隨機 baseline & $k=10$ 實際 & 倍數 \\
 \midrule
 \textcircled{1} & 0.6966 & 0.7737 & 1.11$\times$ \\
 \textcircled{2} & 0.5069 & 0.5957 & 1.18$\times$ \\
@@ -1187,7 +1187,7 @@ $+0.461$）。這只有在兩者\textbf{錯的列不同}時才划算。所以那
 \medskip
 \textbf{\textcircled{4}是關鍵對照組。} 依量一它至少和\textcircled{3}一樣難，分歧卻是
 零：系統與標註者讀著同一批表面證據，都覺得不夠。那是\textbf{普通的難}，而普通的難對
-普通的補救有反應——主辦方自己的基線正好如此，檢索把\textcircled{4}從 0.3090 拉到
+普通的補救有反應——主辦方自己的 baseline 正好如此，檢索把\textcircled{4}從 0.3090 拉到
 0.4227，把\textcircled{3}只從 0.3549 拉到 0.3599。
 
 \medskip
@@ -1228,7 +1228,7 @@ $+0.461$）。這只有在兩者\textbf{錯的列不同}時才划算。所以那
 1 骨幹自由組合下專用與多任務\textbf{完全相同}（0.6015 vs 0.6015）。唯一動的是
 \textcircled{4}：$0.5291 \to 0.5848$（\textbf{+0.0557}），方向與另一次獨立實驗
 （+0.0952）一致，\textbf{是目前唯一跨兩次實驗複現的正向結果}。而\textcircled{4}正是
-官方基線最弱的子任務（0.4227）。
+官方 baseline 最弱的子任務（0.4227）。
 
 \subsection{競賽集成的領先幾乎全部來自集成本身}
 
@@ -1359,7 +1359,7 @@ $(2\times373/(373+2000) + 0)/2 = 0.157$。修正方式是載入後呼叫 \texttt
 這是唯一針對「輸入層次限制」的介入 & 中 \\
 \addlinespace
 \textbf{檢索增強（RAG）} & 檢索同公司其他段落或同產業對照段落作為脈絡，可能解決
-「這個數字算不算具體」需要比較基準的問題 & 中 \\
+「這個數字算不算具體」需要一個比較對象 & 中 \\
 \addlinespace
 \textbf{LoRA 微調大型語言模型} & 目前 LLM 只用於零樣本。微調 7--8B 模型可能比 340M
 編碼器更能捕捉判斷 & 中高 \\
