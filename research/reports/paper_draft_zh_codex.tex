@@ -1,0 +1,316 @@
+% ---------------------------------------------------------------------------
+% 論文中文草稿（NTCIR-19 AI CUP VeriPromiseESG Track 投稿用）
+% 以 XeLaTeX 編譯：  xelatex paper_draft_zh_codex.tex
+% ---------------------------------------------------------------------------
+\documentclass[11pt,a4paper]{ctexart}
+
+% Overleaf：Menu -> Compiler 必須設為 XeLaTeX。
+% 字體必須明確指定為繁體字集（TC）。若交給 ctex 自動挑選，它在 Overleaf 上會選到
+% 簡體字型，繁體字會變成缺字方框。
+\usepackage{xeCJK}
+\setCJKmainfont{Noto Serif CJK TC}
+\setCJKsansfont{Noto Sans CJK TC}
+\setCJKmonofont{Noto Sans Mono CJK TC}
+
+\usepackage{geometry}
+\geometry{top=1.7cm,bottom=1.8cm,left=1.85cm,right=1.85cm}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{amsmath}
+\usepackage[table]{xcolor}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true,linkcolor=black,urlcolor=blue,citecolor=black}
+\usepackage{microtype}
+\usepackage{fancyhdr}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{NTCIR-19 中文草稿}
+\fancyhead[R]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\setlength{\parindent}{2em}
+\setlength{\parskip}{0.15em}
+\setlist{nosep,leftmargin=2em}
+
+\newcommand{\fn}[1]{\texttt{#1}}
+\newcommand{\src}[1]{\textit{數值來源：\fn{research/output/#1}}}
+
+\title{\textbf{承諾不只是標籤：繁體中文 ESG 報告的子句層級跨度抽取}}
+\author{TEAM\_10671}
+\date{}
+
+\begin{document}
+\ctexset{figurename={圖},tablename={表},abstractname={摘要}}
+\maketitle
+
+\begin{abstract}
+VeriPromiseESG4K 將企業永續報告中的承諾驗證建成四個分類欄位，另為每個正例標出
+承諾與佐證的文字跨度（span）；然而共享任務只評分類，這兩個覆蓋所有正例的欄位尚未
+形成評測任務。本文問一個與競賽排名無關的問題：\textbf{繁體中文 ESG 段落中的承諾與
+佐證，應以句子還是子句為抽取單元？}資料分析顯示，僅 24\% 的標註邊界落在句界，加入
+逗號與頓號後，子句邊界對齊率為 71\%；相應的可達字元 F1 上限由 0.5414 提高至 0.9748。
+我們以同一個中文 RoBERTa 編碼器、同一組五折切分與訓練設定，比較句子與子句單元。
+三個隨機種子的平均結果顯示，子句模型把承諾跨度的字元 F1 由 0.4857 提高至 0.5889，
+佐證跨度由 0.6356 提高至 0.6663；移除段落脈絡時，兩者分別下降 0.0590 與 0.0238，
+換用另一個中文編碼器則落在種子變異範圍內。這些結果支持一項具體結論：\textbf{此資料的
+有效歸納偏誤不是更大的生成模型，而是「以子句作決策、以整段作脈絡」的任務形式化。}
+我們同時指出字元 F1 會高估「整段照抄」等過度抽取策略，因此必須連同交集聯集比
+（intersection over union, IoU）與完全匹配（exact match）報告。
+
+\noindent\textbf{關鍵詞：}ESG、企業承諾、跨度抽取、子句分類、繁體中文、任務形式化
+
+% 摘要數值來源：span_extraction_feasibility.md；tagger_ablation_promise_string.md；
+% tagger_ablation_evidence_string.md
+\end{abstract}
+
+\section{緒論}
+
+企業永續報告同時包含未來承諾與支持承諾的既有行動。對稽核者而言，只輸出
+\fn{Yes}/\fn{No} 或 \fn{Clear}/\fn{Not Clear} 並不充分；系統還應指出判斷依據位於
+何處。可定位的文字證據能讓使用者查核錯誤，也能把分類器的輸出轉成可追溯的審閱介面。
+
+VeriPromiseESG4K 含 4,000 個段落，其中 2,000 個為測試資料。資料為四個分類欄位評分，
+並另附 \fn{promise\_string} 與 \fn{evidence\_string}：前者摘錄承諾語句，後者摘錄佐證
+語句。訓練與驗證資料合計來自 49 份 ESG 報告；在具有相應正標籤的資料中，兩個跨度欄位
+皆有標註。共享任務的提交格式沒有這兩欄，因此排行榜無法回答「系統是否找對文字」這個
+問題。\src{official_test_scoring.md；step12_distribution_comparison.md；span_coverage.md}
+
+本文把這項未評測資源建成一個獨立研究問題：\textbf{應以什麼文字單元抽取承諾與佐證？}
+這不是純粹的前處理選擇。句子單元不能表示句內邊界，也不易表示相隔的多段答案；自由字元
+起訖模型雖然彈性最高，卻與資料中大量不連續跨度不相容。繁體中文的逗號與頓號提供第三種
+選擇：把整段一次編碼，再對每個子句做二元判斷。
+
+本文的貢獻如下：
+
+\begin{enumerate}
+  \item 定義 VeriPromiseESG4K 的承諾與佐證跨度評測，並以標註幾何證明句子是錯誤的
+        化約單元，而子句只犧牲少量可達上限。
+  \item 提出脈絡感知的子句標註器（context-aware clause tagger），以相同編碼器、
+        相同切分與相同超參數對照句子 baseline，並以三個隨機種子與消融實驗定位增益。
+  \item 顯示單一字元 F1 不足以評估此任務：整段照抄可取得不低的分數，卻幾乎從不精確；
+        因此提出字元 F1、IoU 與完全匹配並列的報告方式。
+\end{enumerate}
+
+本文不把競賽總分當成研究證據。該總分混合四個類別數不同的欄位，而且
+\fn{evidence\_quality} 的 \fn{Misleading} 在測試集只有 3 筆；這一類 F1 為 0 時，
+四類 macro-F1 由移除該類後的 0.6189 降至 0.4642。這個敏感度說明共享任務指標適合
+排名提交，不適合替本文的抽取問題定義證據。\src{subtask_difficulty.md}
+
+\section{任務定義與資料}
+
+\subsection{兩個跨度任務}
+
+對每個段落 $x$，承諾任務預測 \fn{promise\_string} 的字元集合 $P_p$，佐證任務預測
+\fn{evidence\_string} 的字元集合 $P_e$。測試集中，承諾任務有 1,625 筆適用資料，佐證
+任務有 1,335 筆；訓練加驗證分別有 1,627 與 1,345 筆。答案可能由一段或多段不相鄰文字
+組成，故本文把任務視為逐單元的多標籤選取，而不是只能輸出單一起點與終點的抽取式問答。
+\src{clause_tagger_promise_string.md；clause_tagger_evidence_string.md；span_extraction_feasibility.md}
+
+\subsection{評量指標}
+
+令預測字元集合為 $P$、標註集合為 $G$。本文使用三個互補指標：
+
+\begin{align}
+\mathrm{CharF1} &= \frac{2|P\cap G|}{|P|+|G|},\\
+\mathrm{IoU} &= \frac{|P\cap G|}{|P\cup G|},\\
+\mathrm{EM} &= \mathbb{I}[P=G].
+\end{align}
+
+字元 F1 衡量覆蓋程度；IoU 對多選文字施加更直接的懲罰；完全匹配要求預測與標註一字
+不差。三者不能互相替代。以整段文字作為佐證答案時，字元 F1 為 0.6004，但完全匹配只有
+0.4\%。其原因是佐證跨度的中位數已占段落 52.2\%，全選策略用極高召回率掩蓋了低精確率。
+因此，本文不接受只靠字元 F1 的優劣判定。\src{span_coverage.md；clause_tagger_evidence_string.md}
+
+\section{為何以子句為單元}
+
+我們先做不涉及模型的上限分析。句子以句號、問號、驚嘆號與分號切分；子句再加入逗號與
+頓號。對每個標註跨度，選取與其重疊的完整單元，計算在該化約下可能達到的最佳字元 F1。
+
+\begin{table}[ht]
+\centering
+\small
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+單元 & 中位長度（字元） & 邊界對齊率 & 可達字元 F1 上限 \\
+\midrule
+句子 & 66 & 24\% & 0.5414 \\
+\rowcolor{green!10}
+子句 & 14 & 71\% & \textbf{0.9748} \\
+\bottomrule
+\end{tabular}
+\caption{文字單元與標註邊界。邊界對齊率指標註起訖同時落在單元邊界的比例。
+\src{span_extraction_feasibility.md}}
+\label{tab:ceiling}
+\end{table}
+
+表~\ref{tab:ceiling} 的差距來自標註形態，而非模型能力。92\% 的承諾片段完整落在一個
+句子內，但片段長度僅占該句中位數的 0.41；選整句通常會多選一半以上文字。另有約五分之一
+至四分之一的答案包含多段文字。子句選取同時容許句內邊界與不連續答案，且上限只比自由
+字元抽取低 0.0252。\src{span_extraction_feasibility.md}
+
+\section{方法}
+
+\subsection{脈絡感知子句標註器}
+
+本文使用 \fn{hfl/chinese-roberta-wwm-ext-large} 將整個段落編碼一次。斷詞器提供每個
+token 的字元位置；對屬於同一子句的 token 向量取平均，送入共享的二元分類頭，判斷該
+子句是否屬於目標跨度。所有判為正例的子句依原順序串接成輸出。因編碼發生在整段層級，
+每個子句的表示可以注意承諾與佐證在其他位置的內容。
+
+訓練採五折交叉驗證（five-fold cross-validation）。每一折以四份訓練、在剩餘一份產生
+折外預測（out-of-fold prediction）；決策門檻只用折外預測選定，再由五個模型平均測試
+機率。承諾與佐證分開訓練。主要設定重跑三個隨機種子；句子 baseline、脈絡消融與編碼器
+消融均使用相同折、訓練輪數、批次大小與學習率，且各自重新用折外資料選門檻。
+\src{tagger_ablation_promise_string.md；tagger_ablation_evidence_string.md}
+
+\subsection{比較系統}
+
+主要 baseline 是以\textbf{句子}取代子句的監督式模型；這個對照只改變決策單元，能直接
+檢驗表~\ref{tab:ceiling} 的標註幾何是否轉化成實際增益。另報告兩種不需訓練的策略：整段
+照抄，以及選取含承諾線索詞的句子。生成式 baseline 使用 Qwen3-8B，分為零樣本
+（zero-shot）與四樣本（four-shot），要求模型逐字引用原段落。
+
+\section{結果}
+
+\subsection{子句對句子的控制比較}
+
+\begin{table}[ht]
+\centering
+\small
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+ & \multicolumn{2}{c}{承諾跨度} & \multicolumn{2}{c}{佐證跨度} \\
+系統 & 字元 F1 & 完全匹配 & 字元 F1 & 完全匹配 \\
+\midrule
+整段照抄 & 0.4183 & 5.5\% & 0.6004 & 0.4\% \\
+Qwen3-8B 零樣本 & 0.2704 & 1.5\% & 0.5537 & 1.4\% \\
+Qwen3-8B 四樣本 & 0.3038 & 9.5\% & 0.4727 & 6.8\% \\
+\midrule
+句子 baseline & 0.4857 & \textbf{14.7\%} & 0.6356 & 8.7\% \\
+\rowcolor{green!10}
+子句模型（三種子平均） & \textbf{0.5889} & 14.1\% & \textbf{0.6663} & \textbf{12.3\%} \\
+\bottomrule
+\end{tabular}
+\caption{測試結果。監督式兩列使用同一協定；子句列為三個種子平均。生成式 baseline
+與監督式模型在相同測試列上評分。\src{tagger_ablation_promise_string.md；
+tagger_ablation_evidence_string.md；llm_span_baseline.md}}
+\label{tab:main}
+\end{table}
+
+子句單元使承諾字元 F1 增加 0.1032，遠大於三個種子的標準差 0.0033；佐證增加
+0.0307，其種子標準差為 0.0010。佐證完全匹配亦由 8.7\% 增至 12.3\%。承諾完全匹配則
+沒有改善（14.7\% 對 14.1\%）：較細單元能減少部分多選文字，但也增加一個邊界切錯的
+機會。本文因此只主張承諾側的重疊品質改善，不主張其完全匹配改善。
+\src{tagger_ablation_promise_string.md；tagger_ablation_evidence_string.md}
+
+生成式 baseline 的主要問題不是語意理解，而是忠實抽取。四樣本條件下，承諾任務仍有
+518 個回傳片段不在原段落中；佐證任務有 371 個。即使提示明確要求引用，生成模型仍把
+抽取做成改寫。\src{llm_span_baseline.md}
+
+\subsection{消融實驗}
+
+\begin{table}[ht]
+\centering
+\small
+\begin{tabular}{@{}lrr@{}}
+\toprule
+變體 & 承諾字元 F1 & 佐證字元 F1 \\
+\midrule
+完整子句模型 & \textbf{0.5889} & \textbf{0.6663} \\
+改用句子單元 & 0.4857 & 0.6356 \\
+移除跨子句脈絡 & 0.5299 & 0.6425 \\
+換用 MacBERT 編碼器 & 0.5823 & 0.6676 \\
+\bottomrule
+\end{tabular}
+\caption{消融結果。完整模型為三種子平均；其他變體維持相同訓練協定並重新選門檻。
+\src{tagger_ablation_promise_string.md；tagger_ablation_evidence_string.md}}
+\label{tab:ablation}
+\end{table}
+
+移除段落脈絡後，承諾與佐證分別下降 0.0590 與 0.0238，顯示「以子句作決策」不等於
+「只讀子句」。相反地，換用 MacBERT 後的差異為 $-0.0066$ 與 $+0.0013$；前者位於承諾
+任務的兩個標準差界線，後者落在佐證的種子變異範圍內。主要增益來自單元與脈絡，而非挑中
+特定預訓練編碼器。
+
+單張 RTX 4090 上，五折訓練承諾模型約 296--297 秒、佐證模型約 245 秒；每千個子句推論
+約 0.30--0.31 秒。這些時間包含折外與測試推論，顯示子句化沒有引入生成式解碼成本。
+\src{tagger_ablation_promise_string.md；tagger_ablation_evidence_string.md}
+
+\section{討論}
+
+\paragraph{研究意義。}
+本文的結果不是「又一個競賽模型」。研究對象是標註表示與模型歸納偏誤：句子化約的上限
+先由資料幾何預測，再由只改一項設定的監督式實驗驗證；段落脈絡與編碼器消融進一步區分
+增益來源。這個設計也產生可移植的假說：對以逗號承載資訊結構、且答案可能不連續的中文
+文件抽取，子句分類應優先於整句選取或單一起訖指標。
+
+\paragraph{跨度不等於品質分類。}
+找到佐證位置不保證能判定佐證是否清楚。現有的「先定位再判斷」實驗把完整段落、標註
+跨度、預測跨度與隨機等長片段作為分類輸入；然而其正對照在 40 個 bootstrap 種子中只有
+7 次排除零，平均區間為 $[-0.0392,+0.0003]$。該設計的靈敏度未被證明，因此本文不把
+「跨度無助分類」當成結論，也不把跨度模型包裝成分類改進。\src{test3_seed_stability.md}
+
+\paragraph{模型自述理由的格式效應。}
+本專案另曾要求語言模型用一句話同時說明多項品質判準，再以同句共現推論模型採用的規則。
+把官方判準拆開逐題詢問後，回覆的標籤分布與未解析率也隨提示改變；共現率因而混合了判定
+與回答格式，不能當成內部機制的證據。這項否定結果不依賴跨度模型，但它規範了本文的錯誤
+分析：本文不從生成理由的詞頻推論模型「真正使用」哪條判準。\src{criterion_decomposition.md}
+
+\paragraph{評測含意。}
+字元 F1 適合給部分正確的跨度連續分數，卻會獎勵過度抽取；完全匹配直觀，卻把少一個
+標點與漏掉整個子句都計為零。IoU 位於兩者之間。未來共享任務若納入跨度，應三者並列，
+並另外報告空輸出、原文不存在片段與多段答案的比例。
+
+\section{限制}
+
+第一，子句規則依中文標點定義；表格、條列與 OCR 錯誤可能使標點不可靠。第二，完全匹配
+仍偏低：承諾 14.1\%、佐證 12.3\%，故目前模型適合提供候選文字，不宜宣稱可取代人工
+摘錄。第三，句子 baseline 是必要但不充分的對照；本文尚未與同編碼器的 token-level BIO
+標註器比較，後者能表示任意邊界，可能縮小或逆轉子句優勢。第四，模型只在單一繁體中文
+資料集上驗證，沒有跨公司年份或跨語言外部測試。第五，標註跨度本身沒有獨立人工複核；
+邊界差異可能反映多個都合理的摘錄方式，而非模型錯誤。
+
+\section{結論}
+
+VeriPromiseESG4K 的跨度標註揭示一個被分類排行榜遮住的研究問題：承諾與佐證的自然單元
+不是句子，而是保留整段脈絡的子句。標註幾何把可達字元 F1 上限由 0.5414 提高到 0.9748；
+控制實驗再把承諾與佐證的實際字元 F1 由 0.4857／0.6356 提高至 0.5889／0.6663。
+脈絡消融有明顯代價，編碼器替換則沒有超出種子噪音。因而，本文的核心結論不是模型規模，
+而是任務形式化：\textbf{以子句決定邊界，以段落提供語境，並用多個跨度指標防止過度抽取
+被單一分數掩蓋。}
+
+% 結論數值來源：span_extraction_feasibility.md；tagger_ablation_promise_string.md；
+% tagger_ablation_evidence_string.md
+
+\begin{thebibliography}{9}
+\small
+
+\bibitem{day2026}
+Min-Yuh Day, Wei-Chen Huang, Hsin-Ting Lu, Wen-Ze Chen, Yu-Han Huang,
+Ching-Tai Chen, and Yohei Seki. VeriPromiseESG4K: A Traditional Chinese ESG
+Promise Verification Dataset. 2026.
+
+\bibitem{seki2025}
+Yohei Seki, Hakusen Shu, Anais Lhuissier, Hanwool Lee, Juyeon Kang,
+Min-Yuh Day, and Chung-Chi Chen. ML-Promise: A Multilingual Dataset for
+Corporate Promise Verification. EMNLP, pages 20353--20366, 2025.
+
+\bibitem{devlin2019}
+Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Kristina Toutanova. BERT:
+Pre-training of Deep Bidirectional Transformers for Language Understanding.
+NAACL-HLT, 2019.
+
+\bibitem{tjong2003}
+Erik F. Tjong Kim Sang and Fien De Meulder. Introduction to the CoNLL-2003
+Shared Task: Language-Independent Named Entity Recognition. CoNLL, 2003.
+
+\bibitem{turpin2023}
+Miles Turpin, Julian Michael, Ethan Perez, and Samuel R. Bowman. Language
+Models Don't Always Say What They Think: Unfaithful Explanations in
+Chain-of-Thought Prompting. NeurIPS, 2023.
+
+\end{thebibliography}
+
+\end{document}
