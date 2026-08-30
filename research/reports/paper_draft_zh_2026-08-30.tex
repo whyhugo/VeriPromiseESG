@@ -53,7 +53,8 @@
 判斷一段 ESG 永續報告書的佐證「夠不夠清楚」，是 VeriPromiseESG4K 這份繁體中文資料集
 上最難的一個欄位。人類標註者在此欄的一致度高達 $\alpha = 0.940$，但已發表的語言模型
 baseline 只有 macro-F1 0.3599，本文使用的微調集成系統也只有 0.4642。這個落差本身就是
-問題：\textbf{人做得到、機器做不到，而且差距不隨模型變大而縮小}。本文因此不再嘗試
+問題：\textbf{人做得到、機器做不到，而且不是靠更大的模型能補上的}——四個前沿商用模型
+在零樣本設定下全部低於一個 3 億參數、但看過本資料集標註的編碼器。本文因此不再嘗試
 提高分數，而是問\textbf{困難的來源是什麼}。
 
 \medskip
@@ -61,20 +62,19 @@ baseline 只有 macro-F1 0.3599，本文使用的微調集成系統也只有 0.4
 真正的成因：\textbf{決定標籤的判準沒有隨資料一起釋出}。官方文件寫下的兩項判準
 （措辭是否模糊、與承諾的連結是否明確）重現標註結果的能力只有 0.592 與 0.675 的
 平衡準確率，低於官方\textbf{從未提及}的表面具體性線索（0.690）；官方唯一給出的
-操作範例在 770 個四模型一致的段落中出現 0 次。要求四個前沿模型說明判斷依據後，
-在\textbf{四個模型一致、卻與人類標註不同}的 149 個段落上，它們有 71.4\% 提到
-「缺少數字」——一項沒有任何官方文件寫過的判準；而它們說某段「模糊」時，
-84\% 的情況同一句話裡也在說缺少數字。這個代換在開源權重上複製成功，且在被逐條追問
-四項官方判準時依然存在。
+操作範例在 742 個四模型皆作答且一致的段落中出現 0 次。要求模型說明判斷依據後可以看到代換
+本身：\textbf{模型說某段「模糊」時——那是官方寫下的判準——有 83.1\%
+$[0.794, 0.862]$ 的情況，同一句話說的是「缺少數字」}，而後者沒有任何官方文件寫過。
+這個比率在是否爭議段落、模型判了什麼、哪一家的模型、以至一個開源 8B 模型上都穩定
+（0.70--0.87），並在被逐條追問四項官方判準時依然存在。
 
 \medskip
 在此診斷之上我們提出三項可行的做法：一個以\textbf{子句}為單位的跨度標註模型，把
 一個從未被任何系統使用的標註資源變成可用任務（承諾抽取字元 F1 0.4434 $\to$ 0.5903）；
 一個\textbf{棄權層}，使用不看模型內部的文字特徵，在 80\% 覆蓋率下把整列聯合正確率
 從 0.4880 提升到 0.5325；以及一個\textbf{異質組合}，把偏誤強度不同的模型平均，使
-準確率從 0.8052 提升到 0.8300。我們並以\textbf{成員之間的錯誤相關係數}解釋為什麼
-同樣是集成，四個前沿模型投票無效（$\phi = +0.498$）而上述異質組合有效
-（$\phi = +0.307$）。
+準確率從 0.8052 提升到 0.8300。討論一節並以\textbf{成員之間的錯誤相關係數}說明為什麼
+同樣是集成，四個前沿模型投票無效（$\phi = 0.537$）而上述異質組合有效（$\phi = 0.307$）。
 
 \medskip
 \textbf{關鍵詞}：ESG、承諾驗證、標註判準、選擇性預測、集成學習、繁體中文
@@ -110,8 +110,12 @@ baseline 只有 macro-F1 0.3599，本文使用的微調集成系統也只有 0.4
         已發表的系統使用。我們指出正確的文字單元是\textbf{子句}而非句子，
         並建成模型（第 \ref{sec:tagger} 節）。
   \item \textbf{兩個把診斷變成系統行為的機制}：棄權與異質組合（第 \ref{sec:act} 節）。
-  \item \textbf{一個對集成何時有效的解釋}：以成員錯誤相關係數說明為什麼前沿模型
-        投票無效而異質組合有效（第 \ref{sec:voting} 節）。
+\end{enumerate}
+
+\paragraph{不列為貢獻的一項} 第 \ref{sec:voting} 節以成員錯誤相關係數解釋為什麼前沿
+模型投票無效、而異質組合有效。這個關係是集成學習的既有結論（Krogh 與 Vedelsby 1995；
+Kuncheva 與 Whitaker 2003），本文只有兩個量測點，因此列為\textbf{討論}而非貢獻。
+\begin{enumerate}[leftmargin=2.2em, itemsep=3pt, resume]
 \end{enumerate}
 
 % ===========================================================================
@@ -315,7 +319,17 @@ macro-F1 \textbf{0.4339}（準確率 0.7618），\textbf{低於}單一編碼器�
 \end{table}
 
 \textbf{參數量大兩到三個數量級的模型，沒有一個比得上那個 3 億參數、但用本資料集微調過
-的編碼器。} 困難因此不是「模型不夠強」。
+的編碼器。}
+
+\paragraph{這證明了什麼、沒證明什麼} 這個比較\textbf{不是能力比較}——微調過的模型看過
+1{,}345 筆本資料集的標註，前沿模型一筆也沒看過。它證明的是比較窄、也比較有用的一件事：
+\textbf{這個判準無法在推論時從官方文字取得}。給模型再多參數、再好的預訓練，只要它只
+拿得到公開的判準文字，就補不上那個差距。
+
+\medskip
+附錄 \ref{app:selfref} 從另一端確認同一件事：同一個開源 8B 模型，只要讓它看過
+1{,}345 筆標註，它的 macro-F1 就從 0.3914 升到 0.4551。\textbf{差別不在模型大小，
+在有沒有看過這批標註者的判斷。}
 
 \paragraph{這個比較有一處不對稱，必須寫明} 四個前沿模型的提示詞給的是\textbf{四個}
 選項（含 \fn{N/A}），本文的編碼器只從\textbf{三個}類別中選。前者因此可能把答案花在
@@ -374,23 +388,27 @@ F & \textbf{預測的}承諾＋佐證 & 0.4704 & $+0.0048\ [-0.0069, +0.0168]$ \
 \midrule
 1 & 測試集全部 & 2{,}000 \\
 2 & 其中有佐證、且品質標籤有效（第 \ref{sec:scale} 節那把尺） & 1{,}335 \\
-3 & 四個模型\textbf{答案完全相同} & 770 \\
-4a & \quad ……而且與人類標註相同 $\rightarrow$ \textbf{對照組} & 621 \\
+3 & 四個模型\textbf{都成功回覆}（\fn{gemini-3.7-flash} 有 80 筆 HTTP 503） & 1{,}255 \\
+4 & 四個模型\textbf{答案完全相同} & 742 \\
+5a & \quad ……而且與人類標註相同 $\rightarrow$ \textbf{對照組} & 595 \\
 \rowcolor{yellow!15}
-4b & \quad ……但與人類標註\textbf{不同} $\rightarrow$ \textbf{爭議組} & \textbf{149} \\
+5b & \quad ……但與人類標註\textbf{不同} $\rightarrow$ \textbf{爭議組} & \textbf{147} \\
 \bottomrule
 \end{tabular}
-\caption{兩組段落的來歷。四個模型彼此不一致的 565 段不列入——那是模型自己就沒共識
-的段落，無法用來談「模型與人的分歧」。}
+\caption{兩組段落的來歷。模型彼此不一致的段落不列入——那是模型自己就沒共識的段落，
+無法用來談「模型與人的分歧」。\textbf{步驟 3 不可省略}：一個 API 呼叫失敗的段落若把
+空回應當成答案，就會產生「其實只有三個模型作答」的假一致；本文早期版本因此多算了 28 段。}
 \end{table}
 
 \paragraph{為什麼這兩組特別有用} 兩組都是四個獨立系統一致同意的段落，差別只在
 \textbf{人同不同意}。因此把兩組拿來對比時，「模型有多確定」這個因素已經被固定住了，
 剩下的差異就是\textbf{人機分歧本身}。
 
-\paragraph{分歧是單向的} 爭議組的 149 段中，人標 \fn{Clear} 的有 119 段（80\%），而
-四個模型一致說 \fn{Not Clear} 的有 120 段。也就是說模型不是隨機出錯，而是系統性地
-\textbf{比人更嚴格}。這個方向性是後續所有分析的起點。
+\paragraph{分歧大致是單向的} 爭議組中人標 \fn{Clear} 的約佔 80\%，而四個模型一致
+說 \fn{Not Clear} 的也約佔 80\%。模型不是隨機出錯，而是系統性地\textbf{比人更嚴格}。
+但方向不是絕對的：其中約六分之一走的是反方向（模型說 \fn{Clear}、人標
+\fn{Not Clear}），另有數段模型一致給出 \fn{N/A}——那是一個在這批段落上依定義不可能
+正確的選項。
 
 \subsection{檢驗四：判準沒有隨資料釋出}
 
@@ -426,27 +444,47 @@ C & 年份、數字、百分比、計量單位、金額、涉及方指認、第�
 \paragraph{怎麼比} 每一組特徵各自餵進一個邏輯迴歸，做五折交叉驗證，用折外預測算
 \textbf{平衡準確率}。目標有兩個：一次是重現\textbf{人類標註}，一次是重現\textbf{四個
 模型的共識答案}。目標都化約為二元（\fn{Clear} 對 \fn{Not Clear}，因 \fn{Misleading}
-僅 3 筆不足以擬合），故隨機水準為 0.500，評測列為第 \ref{sec:scale} 節那 1,335 段中
-標籤為此二類的 1,332 段。
+僅 3 筆不足以擬合），故隨機水準為 0.500。
+
+\paragraph{三處必須寫明的不對等} 這個比較\textbf{不是三組條件相同的競賽}，讀者必須
+知道差在哪：
+
+\begin{enumerate}[leftmargin=2.2em, itemsep=2pt]
+  \item \textbf{特徵數不同}：A 與 B 各 4 個，C 有 8 個——C 的容量是兩倍。
+  \item \textbf{讀的文字不同}：A、B 只讀\textbf{佐證句}（官方說要評估的正是它），
+        C 讀\textbf{整段}。佐證跨度的中位數長度約為整段的一半，所以 C 的正規表示式
+        有大約兩倍的文字可以命中。
+  \item \textbf{來源不同}：A、B 是把官方寫下的判準轉寫成特徵；C 是\textbf{觀察哪些
+        線索與標籤相關}之後手寫出來的。這是「工程過的特徵」對「轉寫的特徵」。
+\end{enumerate}
+
+三者都對 C 有利，因此\textbf{「C 的 0.690 高於 B 的 0.675」不應被讀成 C 比 B 好}——
+兩者的信賴區間本來就幾乎完全重疊（見下表）。另外，兩個欄位的評測列不同：重現人類標註
+用 1{,}332 段，重現模型共識只用四模型一致的 742 段，而後者\textbf{因為是由一致性挑
+出來的，本來就比較好預測}。
 
 \begin{table}[h]
 \centering\small
-\begin{tabular}{@{}llrr@{}}
+\begin{tabular}{@{}llll@{}}
 \toprule
 組 & 它操作化的判準 & 重現人類標註 & 重現模型共識 \\
 \midrule
-A & 措辭模糊（官方寫下的） & 0.592 & 0.654 \\
-B & 與承諾的連結（官方寫下的） & 0.675 & 0.708 \\
+A & 措辭模糊（官方寫下的） & 0.592 $[0.561, 0.623]$ & 0.654 $[0.616, 0.690]$ \\
+B & 與承諾的連結（官方寫下的） & 0.675 $[0.645, 0.705]$ & 0.708 $[0.674, 0.743]$ \\
 \rowcolor{yellow!15}
-C & 有沒有具體數字（\textbf{官方從未提過}） & \textbf{0.690} & \textbf{0.786} \\
+C & 有沒有具體數字（官方從未提過） & 0.690 $[0.657, 0.723]$ & 0.786 $[0.752, 0.818]$ \\
 \bottomrule
 \end{tabular}
-\caption{平衡準確率，五折折外，隨機水準 0.500。\textbf{官方寫下的兩條判準，是最不能
-重現官方標註結果的兩組。}}
+\caption{平衡準確率，五折折外，隨機水準 0.500，括號內為 bootstrap 95\% 信賴區間。
+\textbf{B 與 C 的區間幾乎完全重疊，因此本文不主張 C 優於 B}；能主張的是 A 明顯低於
+另外兩組，以及三組\textbf{全都比較能重現模型、而非人類}。}
 \end{table}
 
-再加兩項事實：官方唯一給出的操作範例（「持續推進」「努力改善」）在 770 個段落中
-\textbf{出現 0 次}；三組判準\textbf{全都}比較能解釋模型而非標註者。
+在這三處不對等之下，仍然成立的有兩件事。第一，\textbf{A 組明顯墊底}（0.592，區間
+上界 0.623，低於 B 與 C 的區間下界）——而 A 操作化的正是官方唯一給出具體範例的那條
+判準，且那兩個範例（「持續推進」「努力改善」）在 742 個段落中\textbf{出現 0 次}。
+第二，\textbf{三組全都比較能重現模型、而非人類}（$+0.062$、$+0.033$、$+0.096$）：
+不論寫下哪一條規則，模型遵守它的程度都高於人類標註遵守它的程度。
 
 \subsection{機制的直接證據：問模型自己}
 
@@ -462,36 +500,81 @@ Kappa} 衡量——這個統計量把「碰巧一致」扣掉之後才計分，0
 任何主張。
 
 \paragraph{表中的數字是什麼} 每一格是\textbf{該組段落中，模型的理由提到這件事的
-比例}（對照組 200 段、爭議組 149 段，每個模型各一次；\fn{gemini-3.7-flash} 有 9 筆
-逾時，已排除）。最右欄的 $p$ 值經 \textbf{Holm 校正}——同時檢定多個項目時，光憑運氣
+比例}（對照組 200 段、爭議組 147 段，每個模型各一次；\fn{gemini-3.7-flash} 另有 9 筆
+理由逾時，已排除）。最右欄的 $p$ 值經 \textbf{Holm 校正}——同時檢定多個項目時，光憑運氣
 就會有幾項看起來顯著，Holm 校正把這個機率壓回去，因此校正後仍顯著的項目才可信。
 
 \medskip
-$^{\dagger}$\textbf{這一列不能用來下結論。} 人工驗證顯示，這個類別的自動歸類
-Cohen's Kappa 為 \textbf{0.000}——在 60 筆抽樣中人工判定它出現 0 次、程式誤判 3 次。
-也就是說這個偵測器\textbf{偵測不到東西}，因此「不顯著」與「偵測不到」在此無法區分。
-本文\textbf{不從這一列推論}模型有沒有使用官方的連結判準；該判準的地位由前一節的
-表（B 組 0.675）認定。
+自動歸類的七個類別中，只有兩個通過人工驗證（Cohen's Kappa 0.963 與 0.861），也
+只有這兩個被用於任何主張。其中「與承諾的連結」一類的 Kappa 為 \textbf{0.000}——
+偵測器偵測不到東西——因此本文\textbf{完全不從模型的理由}推論官方的連結判準；該判準
+的地位只由前一節的迴歸（B 組 0.675）認定。
+
+\paragraph{一個看似有力、但站不住的比較} 最直覺的做法，是比較模型在\textbf{爭議段落}
+與\textbf{對照段落}上引用了什麼判準。這麼做會得到一組極為漂亮的數字——「缺少數字」的
+引用率從 0.149 升到 0.714，$p = 2.9 \times 10^{-100}$。
+
+\medskip
+\textbf{那個比較是假的，本文不使用它。} 對照組有 90\% 是模型判為 \fn{Clear} 的段落，
+爭議組有 81\% 是模型判為 \fn{Not Clear} 的段落。把模型自己的判定固定住之後，兩組的
+差異完全消失：
 
 \begin{table}[h]
 \centering\small
-\begin{tabular}{@{}lrrr@{}}
+\begin{tabular}{@{}lrr@{}}
 \toprule
-模型自述的判斷依據 & 對照組 & 爭議組 & Holm 校正 $p$ \\
+分層 & 理由數 & 引用「缺少數字」 \\
 \midrule
-官方判準：措辭模糊 & 0.112 & 0.719 & $1.7\times10^{-117}$ \\
-\rowcolor{gray!12}
-官方判準：與承諾的連結$^{\dagger}$ & 0.077 & 0.094 & 0.25（不顯著）\\
-\rowcolor{yellow!15}
-\textbf{官方從未提及：缺少具體數字} & 0.149 & \textbf{0.714} & $2.9\times10^{-100}$ \\
-引用「有具體數據」 & \textbf{0.439} & 0.088 & $1.2\times10^{-45}$ \\
+對照組／模型判 \fn{Clear} & 714 & 0.066 \\
+爭議組／模型判 \fn{Clear} & 100 & 0.130 \\
+\midrule
+對照組／模型判 \fn{Not Clear} & 79 & 0.899 \\
+爭議組／模型判 \fn{Not Clear} & 478 & 0.837 \\
 \bottomrule
 \end{tabular}
+\caption{兩組的差異來自\textbf{判定的組成}，不是來自爭議本身。那個 $p$ 值檢定的是
+「模型判不清楚時會說缺數字」——為真，但近乎同義反覆。}
 \end{table}
 
-「措辭模糊」與「缺少數字」的比率幾乎相同，這不是巧合：\textbf{模型說某段「模糊」時，
-同一句話裡有 84.1\% 同時在說「缺少數字」}。模型在\textbf{形式上}遵守了官方寫下的
-判準，卻把「模糊」\textbf{實例化成「沒有數字」}。
+\paragraph{真正的證據不需要那個切分} 該問的是一個不依賴分組的問題：\textbf{當模型
+引用官方的「模糊」判準時，它指的是什麼？}
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}lrrl@{}}
+\toprule
+分層 & 說「模糊」的理由數 & 同句也說「缺數字」 & 95\% 信賴區間 \\
+\midrule
+\rowcolor{green!12}
+\textbf{全部四個模型、全部段落} & 467 & \textbf{0.831} & $[0.794,\ 0.862]$ \\
+\midrule
+只看對照段落 & 40 & 0.725 & $[0.572,\ 0.839]$ \\
+只看爭議段落 & 427 & 0.841 & $[0.803,\ 0.872]$ \\
+\midrule
+只看模型判 \fn{Not Clear} 的 & 445 & 0.838 & $[0.801,\ 0.870]$ \\
+\midrule
+\fn{claude-opus-5} & 133 & 0.872 & $[0.805,\ 0.919]$ \\
+\fn{claude-sonnet-5} & 122 & 0.869 & $[0.798,\ 0.918]$ \\
+\fn{gemini-3.7-flash} & 110 & 0.864 & $[0.787,\ 0.916]$ \\
+\fn{gpt-5.6-sol} & 102 & 0.696 & $[0.601,\ 0.777]$ \\
+\midrule
+\rowcolor{yellow!12}
+\fn{Qwen3-8B}（開源 8B，第五家機構） & 71 & 0.704 & $[0.590,\ 0.798]$ \\
+\bottomrule
+\end{tabular}
+\caption{每一列都是：在\textbf{說某段模糊}的那些理由裡，有多少同一句話也說了
+\textbf{缺少數字}。}
+\end{table}
+
+\begin{tcolorbox}[colback=green!5, colframe=green!45, title=這才是本文的機制證據]
+每一個分層都落在 \textbf{0.70 到 0.87} 之間，信賴區間彼此重疊。是不是爭議段落、模型
+判了什麼、哪一家做的模型、是前沿系統還是開源 8B——\textbf{都不影響}。
+
+\medskip
+一個在所有分層下都穩定的量，是\textbf{這些模型如何讀那條判準}的性質，不是樣本的性質。
+\textbf{模型說某段「模糊」時，大約每六次有五次，同一句話說的是「缺少數字」。} 它在
+形式上遵守了官方寫下的判準，卻把「模糊」\textbf{實例化成「沒有數字」}。
+\end{tcolorbox}
 
 \paragraph{兩項排除} 這個代換\textbf{不是提示詞格式造成的}：把官方四項判準逐字拆成
 四題、強迫模型分別作答，那個共現率只從 0.876 降到 0.808（此處為單一模型
@@ -501,7 +584,7 @@ Cohen's Kappa 為 \textbf{0.000}——在 60 筆抽樣中人工判定它出現 0
 
 \medskip
 \textbf{它也不是某一家實驗室的產物。} 我們把完全相同的提示詞與完全相同的 349 段
-（149 爭議 + 200 對照）交給一個\textbf{開源的 80 億參數模型}（\fn{Qwen3-8B}）——規模
+（爭議 + 對照）交給一個\textbf{開源的 80 億參數模型}（\fn{Qwen3-8B}）——規模
 小一個量級、由第四家機構訓練、權重公開可查，而且它\textbf{沒有參與}第 \ref{sec:split}
 節那兩組的挑選。結果同樣的不對稱重現了：
 
@@ -516,11 +599,12 @@ Cohen's Kappa 為 \textbf{0.000}——在 60 筆抽樣中人工判定它出現 0
 \bottomrule
 \end{tabular}
 \caption{欄位數值為\textbf{該組段落中，模型的理由提到這件事的比例}。例如 0.315 表示
-在 149 段爭議段落裡，有 31.5\% 的理由提到「缺少數字」。}
+在爭議段落裡，有 31.5\% 的理由提到「缺少數字」。}
 \end{table}
 
-在它說某段「模糊」的理由裡，有 71.9\% 同一句話也在說缺少數字（四個前沿模型是
-84.1\%）。
+它的共現率是 \textbf{0.704}$\,[0.590, 0.798]$，與四個前沿模型的 0.831 區間重疊
+（見上表最後一列）。\textbf{同一個代換，出現在一個小一個量級、由第五家機構訓練、
+權重公開、且沒有參與分組挑選的模型上。}
 
 \subsection{診斷對其他子任務的預測，以及驗證}
 
@@ -760,7 +844,7 @@ Qwen3-8B 零樣本單獨 & 0.3914 & 0.7700 & $-0.0352\ [-0.0614, -0.0105]$ \\
 \node[b, fill=gray!6, draw=gray!45] (bb) at (3.8,0)
   {三種編碼器之間\\\textit{$\phi$ 未量測}\\增益 $+0.0142$};
 \node[b, fill=red!8] (fr) at (7.6,0)
-  {\textbf{四個前沿模型}\\$\phi = +0.498$\\\textbf{無增益}};
+  {\textbf{四個前沿模型}\\$\phi = 0.537$\\\textbf{無增益}};
 \node[b, fill=green!14] (het) at (11.4,0)
   {\textbf{異質組合}\\$\phi = +0.307$\\準確率 $+0.0247$};
 \draw[ar] (f5) -- (bb); \draw[ar] (bb) -- (fr); \draw[ar] (fr) -- (het);
@@ -779,7 +863,7 @@ $\phi$ 需要保留每一折、每個 backbone 的個別預測才能計算，本
 成員組合 & 錯誤相關 $\phi$ & 平均之後 \\
 \midrule
 \rowcolor{red!8}
-四個前沿模型彼此（平均） & $+0.498$ & 無增益（先前實驗七個模型全負） \\
+四個前沿模型彼此（6 組配對平均） & $0.537$ & 多數決 0.4467，低於最強成員 0.4489 \\
 \rowcolor{green!12}
 我們的 transformer 與 Qwen3-8B & $\mathbf{+0.307}$ & \textbf{準確率} $\mathbf{+0.0247}$ \\
 \fn{claude-opus-5} 與 Qwen3-8B（最低的一對） & $+0.051$ & 未測 \\
@@ -908,5 +992,79 @@ $+0.070$）。
 信心訊號抓不到判準不匹配的錯誤}——因為在爭議段落上模型並非不會，而是有把握地套用
 另一條判準。\textbf{這個預測是錯的}：它在爭議段落上仍達到 0.754 的 AUC。原因就在上表
 ——微調已經把一部分判準傳給了模型，模型的不確定性因此跟著那條判準走。
+
+\begin{thebibliography}{99}
+\small
+
+\bibitem{day2026} Min-Yuh Day, Wei-Chen Huang, Hsin-Ting Lu, Wen-Ze Chen,
+Yu-Han Huang, Ching-Tai Chen, and Yohei Seki. VeriPromiseESG4K: A Traditional
+Chinese ESG Promise Verification Dataset. 2026.
+
+\bibitem{seki2024} Yohei Seki et al. ML-Promise: A Multilingual Dataset for
+Corporate Promise Verification. arXiv:2411.04473, 2024.
+
+\bibitem{chow1970} C. K. Chow. On Optimum Recognition Error and Reject Tradeoff.
+IEEE Transactions on Information Theory, 16(1):41--46, 1970.
+
+\bibitem{geifman2017} Yonatan Geifman and Ran El-Yaniv. Selective
+Classification for Deep Neural Networks. NeurIPS, 2017.
+
+\bibitem{hendrycks2017} Dan Hendrycks and Kevin Gimpel. A Baseline for
+Detecting Misclassified and Out-of-Distribution Examples in Neural Networks.
+ICLR, 2017.
+
+\bibitem{krogh1995} Anders Krogh and Jesper Vedelsby. Neural Network Ensembles,
+Cross Validation, and Active Learning. NeurIPS, 1995.
+
+\bibitem{kuncheva2003} Ludmila I. Kuncheva and Christopher J. Whitaker. Measures
+of Diversity in Classifier Ensembles and Their Relationship with the Ensemble
+Accuracy. Machine Learning, 51(2):181--207, 2003.
+
+\bibitem{plank2022} Barbara Plank. The 'Problem' of Human Label Variation: On
+Ground Truth in Data, Modeling and Evaluation. EMNLP, 2022.
+
+\bibitem{pavlick2019} Ellie Pavlick and Tom Kwiatkowski. Inherent Disagreements
+in Human Textual Inferences. TACL, 7:677--694, 2019.
+
+\bibitem{aroyo2015} Lora Aroyo and Chris Welty. Truth Is a Lie: Crowd Truth and
+the Seven Myths of Human Annotation. AI Magazine, 36(1):15--24, 2015.
+
+\bibitem{uma2021} Alexandra N. Uma, Tommaso Fornaciari, Dirk Hovy, Silviu
+Paun, Barbara Plank, and Massimo Poesio. Learning from Disagreement: A Survey.
+JAIR, 72:1385--1470, 2021.
+
+\bibitem{gebru2021} Timnit Gebru, Jamie Morgenstern, Briana Vecchione,
+Jennifer Wortman Vaughan, Hanna Wallach, Hal Daumé III, and Kate Crawford.
+Datasheets for Datasets. Communications of the ACM, 64(12):86--92, 2021.
+
+\bibitem{bender2018} Emily M. Bender and Batya Friedman. Data Statements for
+Natural Language Processing. TACL, 6:587--604, 2018.
+
+\bibitem{turpin2023} Miles Turpin, Julian Michael, Ethan Perez, and Samuel R.
+Bowman. Language Models Don't Always Say What They Think: Unfaithful
+Explanations in Chain-of-Thought Prompting. NeurIPS, 2023.
+
+\bibitem{wei2022} Jason Wei et al. Chain-of-Thought Prompting Elicits Reasoning
+in Large Language Models. NeurIPS, 2022.
+
+\bibitem{chuang2025} Yu-Neng Chuang, Prathusha K. Sarma, Parikshit Gopalan,
+John Boccio, Sara Bolouki, Xia Hu, and Helen Zhou. Learning to Route LLMs with
+Confidence Tokens. ICML, 2025.
+
+\bibitem{cui2021} Yiming Cui, Wanxiang Che, Ting Liu, Bing Qin, and Ziqing Yang.
+Pre-Training with Whole Word Masking for Chinese BERT. IEEE/ACM TASLP,
+29:3504--3514, 2021.
+
+\bibitem{krippendorff2011} Klaus Krippendorff. Computing Krippendorff's
+Alpha-Reliability. 2011.
+
+\bibitem{holm1979} Sture Holm. A Simple Sequentially Rejective Multiple Test
+Procedure. Scandinavian Journal of Statistics, 6(2):65--70, 1979.
+
+\bibitem{opitz2024} Juri Opitz. A Closer Look at Classification Evaluation
+Metrics and a Critical Reflection of Common Evaluation Practice. TACL,
+12:820--836, 2024.
+
+\end{thebibliography}
 
 \end{document}
