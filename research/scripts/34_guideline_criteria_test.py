@@ -58,6 +58,13 @@ OUT = os.path.join(ROOT, "research", "output")
 S26 = os.path.join(ROOT, "research", "artifacts", "s26")
 os.makedirs(OUT, exist_ok=True)
 SEED = 20260829
+
+import importlib.util   # noqa: E402  -- needs ROOT above
+_pspec = importlib.util.spec_from_file_location(
+    "probe_groups", os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                 "probe_groups.py"))
+pg = importlib.util.module_from_spec(_pspec)
+_pspec.loader.exec_module(pg)
 EQ = ["Clear", "Not Clear", "Misleading"]
 
 # --- Family A: the guideline's own criterion, "no vague wording" -------------
@@ -193,19 +200,13 @@ def main():
     rows = {r["id"]: r for r in te
             if na(r["evidence_status"]) == "Yes" and na(r["evidence_quality"]) in EQ}
 
-    preds = {}
-    for f in sorted(os.listdir(S26)):
-        if f.endswith(".json"):
-            got = json.load(open(os.path.join(S26, f), encoding="utf-8"))
-            preds[f.split("__")[0]] = {k: (v[0] or "Clear") for k, v in got.items()}
-    models = sorted(preds)
-    ids = [i for i in rows if all(i in preds[m] for m in models)]
-    unan = [i for i in ids if len({preds[m][i] for m in models}) == 1]
-    wrong = [i for i in unan if preds[models[0]][i] != na(rows[i]["evidence_quality"])]
-    right = [i for i in unan if preds[models[0]][i] == na(rows[i]["evidence_quality"])]
+    u = pg.unanimous_all()
+    preds, models = u["verdict"], u["models"]
+    answered, unan = u["answered"], u["unanimous"]
+    right, wrong = u["control"], u["disputed"]
 
-    have_ev = sum(1 for i in ids if (rows[i].get("evidence_string") or "").strip())
-    have_pr = sum(1 for i in ids if (rows[i].get("promise_string") or "").strip())
+    have_ev = sum(1 for i in rows if (rows[i].get("evidence_string") or "").strip())
+    have_pr = sum(1 for i in rows if (rows[i].get("promise_string") or "").strip())
 
     L = []
     A = L.append
@@ -253,13 +254,16 @@ def main():
     A("")
     A("Two groups, as in script 33: the **%d** rows where all four frontier "
       "models agree with each other and match the gold label, and the **%d** "
-      "where they agree and all four differ from it. Family A and family B are "
-      "computed on `evidence_string`, which is what the guideline says to "
+      "where they agree and all four differ from it. A row counts only if all "
+      "four models actually answered it -- `gemini-3.7-flash` returned HTTP 503 "
+      "on 80 -- which leaves %d of the %d eligible rows. Family A and family B "
+      "are computed on `evidence_string`, which is what the guideline says to "
       "assess; family C is computed on the whole paragraph, matching script 33. "
       "Of the %d eligible rows, %d (%.0f%%) carry an `evidence_string` and %d "
       "(%.0f%%) a `promise_string`."
-      % (len(right), len(wrong), len(ids), have_ev, 100.0 * have_ev / len(ids),
-         have_pr, 100.0 * have_pr / len(ids)))
+      % (len(right), len(wrong), len(answered), len(rows), len(rows),
+         have_ev, 100.0 * have_ev / len(rows),
+         have_pr, 100.0 * have_pr / len(rows)))
     A("")
 
     A("## Does each criterion separate the disputed rows?")
@@ -296,12 +300,19 @@ def main():
       "consensus**. Each family is fitted as a logistic regression and scored "
       "by out-of-fold balanced accuracy over five folds, so 0.500 is chance.")
     A("")
-    gold_ids = [i for i in ids if na(rows[i]["evidence_quality"]) in ("Clear", "Not Clear")]
+    # the gold column is about the annotators, so it must not be restricted to
+    # the rows where a commercial API happened to respond
+    gold_ids = [i for i in rows
+                if na(rows[i]["evidence_quality"]) in ("Clear", "Not Clear")]
     y_gold = [1 if na(rows[i]["evidence_quality"]) == "Clear" else 0 for i in gold_ids]
     cons_ids = [i for i in unan if preds[models[0]][i] in ("Clear", "Not Clear")]
     y_cons = [1 if preds[models[0]][i] == "Clear" else 0 for i in cons_ids]
     A("The gold column uses the %d eligible rows with a `Clear` / `Not Clear` "
-      "gold label; the consensus column uses the %d unanimous rows."
+      "gold label and does not depend on the models at all; the consensus "
+      "column uses the %d unanimous rows whose shared answer is one of those "
+      "two labels. **The two columns are not on the same rows**, and the "
+      "unanimous rows are easier by construction -- they were selected for "
+      "agreement -- so the gap should be read as a direction, not a magnitude."
       % (len(gold_ids), len(cons_ids)))
     A("")
 

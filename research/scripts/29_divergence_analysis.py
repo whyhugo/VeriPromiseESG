@@ -73,9 +73,11 @@ def main():
             continue
         m = f.split("__")[0]
         got = json.load(open(os.path.join(S26, f), encoding="utf-8"))
-        preds[m] = {rid: (v[0] or "Clear") for rid, v in got.items()}
+        # an empty verdict is a failed API call, not a `Clear`
+        preds[m] = {rid: (v[0] or "") for rid, v in got.items()}
     models = sorted(preds)
-    ids = [r["id"] for r in rows if all(r["id"] in preds[m] for m in models)]
+    ids = [r["id"] for r in rows
+           if all(r["id"] in preds[m] and preds[m][r["id"]] for m in models)]
     gold = {i: na(by_id[i]["evidence_quality"]) for i in ids}
 
     L = []

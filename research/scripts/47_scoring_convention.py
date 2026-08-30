@@ -1,29 +1,24 @@
-"""One scoring convention, applied everywhere, with the API failures counted.
+"""The scoring convention every other script in this project follows.
 
-Two problems in the project's own numbers made this necessary.
+Comparing a commercial API against a local classifier needs two decisions
+written down, because the plausible-looking default is wrong in both cases.
 
-First, a failed API call was being scored as a free guess. Scripts 26 and 45 both
-read a cached response as `v[0] or "Clear"`, so a model that returned nothing --
-an HTTP 503, a timeout -- was recorded as having answered `Clear`. On a set that
-is 83% `Clear`, that is not a neutral default; it is a correct answer handed to
-the model for failing to respond. One model has 80 such rows.
+**A call that failed is not an answer.** An HTTP 503 or a timeout leaves an
+empty response. Reading it as `Clear` hands the model a correct answer on a set
+that is 82.85% `Clear`, and hands the most unreliable model the most free marks.
+Here such a row is **excluded**, and the count of exclusions is reported per
+model so nobody has to guess how much of a score rests on them.
 
-Second, two conventions for an out-of-set prediction coexist. Script 26 maps a
-predicted `N/A` to `Clear`; script 45 maps it to an index outside the label set
-so that it counts as wrong. The two give different numbers for the same model,
-and the difference is not small.
+**A prediction of `N/A` is wrong, not absent.** Every row scored here has
+evidence, so `N/A` is not an available correct answer. A model that chooses it
+has made an error, and mapping it to `Clear` would again convert an error into a
+free mark. Frontier models were offered four options and the fine-tuned encoder
+three, which is a real asymmetry against the former; it is stated in the paper
+rather than smoothed away here.
 
-This script fixes one convention and reports everything under it:
-
-  * a response that failed or could not be parsed is **excluded**, and the
-    exclusion is reported per model. It is not scored as anything.
-  * a prediction of `N/A` on a row that has evidence is **wrong**. The row had
-    evidence, so `N/A` is not an available correct answer.
-
-It then re-derives the unanimity split under that convention, because a row
-counted as unanimous only through a coerced failure is not unanimous, and
-computes the error-correlation values the paper quotes, which until now existed
-only in a scratch file.
+This report is the arithmetic that follows from those two decisions: what each
+model scores, what the unanimity split becomes, and the error correlations the
+discussion section quotes.
 
 CPU only.
 """
@@ -84,9 +79,9 @@ def main():
     A("")
     A("## How often did a call actually fail?")
     A("")
-    A("A cached response with empty text is a failed call, not an answer. Until "
-      "now these were read as `v[0] or \"Clear\"` and scored as a correct guess "
-      "on a set that is 82.8% `Clear`.")
+    A("A cached response with empty text is a failed call, not an answer, and "
+      "is excluded below. The column matters because the exclusions are not "
+      "spread evenly: one model carries all of them.")
     A("")
     A("| model | rows | empty response | predicted `N/A` | usable |")
     A("|---|---:|---:|---:|---:|")
@@ -100,13 +95,14 @@ def main():
           % (m, len(have), len(empty), len(naa), len(ok_ids[m])))
     A("")
 
-    A("## The same models under the two conventions")
+    A("## What the convention is worth")
     A("")
-    A("`old` is what scripts 26 and 45 did: an empty response and an `N/A` both "
-      "become `Clear`. `new` excludes the failures and counts a predicted `N/A` "
-      "as wrong, since these rows all have evidence.")
+    A("`lenient` is the convention this project does **not** use: an empty "
+      "response and an `N/A` both become `Clear`. `strict` is the one it does: "
+      "failures excluded, `N/A` wrong. The gap is the size of the free marks.")
     A("")
-    A("| model | old macro-F1 | old acc. | new macro-F1 | new acc. | rows scored |")
+    A("| model | lenient macro-F1 | lenient acc. | **strict macro-F1** | "
+      "**strict acc.** | rows scored |")
     A("|---|---:|---:|---:|---:|---:|")
     for m in models:
         have = [i for i in ids if i in raw[m]]
@@ -136,9 +132,12 @@ def main():
          np.mean([a == b for a, b in zip(y, pe)]), len(ids)))
     A("")
 
-    A("## The unanimity split, with failures excluded")
+    A("## The unanimity split")
     A("")
-    A("A row is only unanimous if all four models actually answered it.")
+    A("A row is unanimous only if all four models actually answered it. The "
+      "lenient column shows what a coerced failure would add: rows where three "
+      "models answered and the fourth did not, which are not unanimous in any "
+      "useful sense.")
     A("")
     both = [i for i in ids if all(i in raw[m] and raw[m][i][0] for m in models)]
     unan = [i for i in both if len({raw[m][i][0] for m in models}) == 1]
@@ -150,14 +149,15 @@ def main():
     old_un = [i for i in old_all if len({old_lab[m][i] for m in models}) == 1]
     old_w = [i for i in old_un if old_lab[models[0]][i] != gold[i]]
 
-    A("| | 以往（失敗計為 Clear） | 修正後（排除失敗） |")
+    A("| | 寬鬆（失敗計為 Clear） | **本文（排除失敗）** |")
     A("|---|---:|---:|")
     A("| 四模型一致 | %d | %d |" % (len(old_un), len(unan)))
     A("| 一致且正確（對照組） | %d | %d |" % (len(old_un) - len(old_w), len(right)))
     A("| 一致但錯誤（爭議組） | %d | %d |" % (len(old_w), len(wrong)))
     A("")
-    A("%d 段先前被算成「四模型一致」，實際上只有三個模型作答；其中 %d 段落在對照組、"
-      "%d 段落在爭議組。**方向與量級不變，但敘述必須改成「四個模型都作答且答案相同」**。"
+    A("寬鬆慣例會多算 %d 段——那些段落實際上只有三個模型作答（%d 段會落入對照組、"
+      "%d 段落入爭議組）。**因此本文一律寫「四個模型都作答且答案相同」，而不是"
+      "「四個模型答案相同」。**"
       % (len(old_un) - len(unan),
          len(set(old_un) - set(unan) - set(old_w)),
          len(set(old_w) - set(wrong))))
@@ -197,16 +197,17 @@ def main():
             v, n = phi(a, b)
             A("| %s 與 %s | **%.3f** | %d |" % (a, b, v, n))
     A("")
-    A("先前 scratch 計算得到 0.498 與 0.307，是把失敗回應計為 `Clear` 之後的結果；"
+    A("在寬鬆慣例下前沿模型那一列會是 0.498，因為被當成 `Clear` 的失敗回應在四個"
+      "模型之間製造了假的一致；"
       "上表為排除失敗後的值。")
     A("")
 
-    A("## 這對論文的影響")
+    A("## 為什麼這件事值得單獨寫一節")
     A("")
-    A("失敗回應被當成免費的 `Clear` 猜測，會\\textbf{高估}該模型的成績，而受影響最深的"
-      "是失敗次數最多的那一個。分歧分析的兩組也因此混入了「其實只有三個模型作答」的列。"
-      "更正後方向與量級都不變，但論文必須改用本節的數字，並把「四個模型答案完全相同」"
-      "改寫為「四個模型都作答且答案相同」。")
+    A("失敗回應若被當成免費的 `Clear` 猜測，受益最大的正是失敗次數最多的那個模型——"
+      "這個慣例會**獎勵不可靠**。它同時汙染分歧分析：一段只有三個模型作答的"
+      "段落會被算成「四個模型一致」。本專案每一支程式都在來源處採用本節的嚴格慣例，"
+      "分組定義只有一份，在 `research/scripts/probe_groups.py`。")
     A("")
 
     dest = os.path.join(OUT, "scoring_convention.md")

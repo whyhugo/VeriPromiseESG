@@ -9,12 +9,52 @@ Base joint exact match is **0.4880**. 89 rows (4.5%) carry a prediction that vio
 | coverage | kept | criterion features (transferred from subtask 3) | structural inconsistency alone | both | random |
 |---|---|---|---|---|---|
 | 100% | 2000 | 0.4880 | 0.4880 | 0.4880 | 0.4880 |
-| 95% | 1900 | 0.4984 | 0.5095 | 0.5132 | 0.4921 |
-| 90% | 1800 | 0.5061 | 0.5050 | 0.5228 | 0.4889 |
-| 80% | 1600 | 0.5100 | 0.5056 | 0.5325 | 0.4881 |
-| 70% | 1400 | 0.5300 | 0.5079 | 0.5443 | 0.4964 |
-| 60% | 1200 | 0.5433 | 0.5133 | 0.5592 | 0.4917 |
-| 50% | 1000 | 0.5660 | 0.5110 | 0.5830 | 0.4920 |
+| 95% | 1900 | 0.4984 | 0.5095 | 0.5132 | 0.4877 |
+| 90% | 1800 | 0.5061 | 0.5050 | 0.5228 | 0.4879 |
+| 80% | 1600 | 0.5100 | 0.5056 | 0.5325 | 0.4880 |
+| 70% | 1400 | 0.5300 | 0.5079 | 0.5443 | 0.4879 |
+| 60% | 1200 | 0.5433 | 0.5133 | 0.5592 | 0.4878 |
+| 50% | 1000 | 0.5660 | 0.5110 | 0.5830 | 0.4876 |
+
+The random column is the mean over 200 orderings rather than one draw, which is why it no longer wanders above and below the base rate. Bootstrap 95% bands, 2000 resamples of the test rows, re-ranking inside each resample:
+
+| coverage | criterion features (transferred from subtask 3) | structural inconsistency alone | both | random |
+|---|---|---|---|---|
+| 100% | [0.4660, 0.5085] | [0.4670, 0.5100] | [0.4660, 0.5105] | [0.4880, 0.4880] |
+| 95% | [0.4753, 0.5200] | [0.4884, 0.5326] | [0.4905, 0.5358] | [0.4837, 0.4926] |
+| 90% | [0.4822, 0.5283] | [0.4844, 0.5294] | [0.4994, 0.5472] | [0.4817, 0.4961] |
+| 80% | [0.4856, 0.5331] | [0.4819, 0.5300] | [0.5069, 0.5563] | [0.4769, 0.4994] |
+| 70% | [0.5043, 0.5543] | [0.4829, 0.5336] | [0.5186, 0.5707] | [0.4764, 0.5021] |
+| 60% | [0.5167, 0.5725] | [0.4850, 0.5400] | [0.5325, 0.5892] | [0.4708, 0.5059] |
+| 50% | [0.5360, 0.5940] | [0.4820, 0.5410] | [0.5540, 0.6150] | [0.4670, 0.5080] |
+
+The paired comparison, which removes the shared base-rate variance: the same resample, both rankings, the difference. A fresh random ordering is drawn in each draw.
+
+| coverage | criterion features (transferred from subtask 3) - random | structural inconsistency alone - random | both - random |
+|---|---|---|---|
+| 100% | +0.0000 [+0.0000, +0.0000] | +0.0000 [+0.0000, +0.0000] | +0.0000 [+0.0000, +0.0000] |
+| 95% | +0.0107 [+0.0016, +0.0189] | +0.0218 [+0.0131, +0.0305] | +0.0255 [+0.0174, +0.0321] |
+| 90% | +0.0182 [+0.0050, +0.0311] | +0.0171 [+0.0056, +0.0306] | +0.0349 [+0.0228, +0.0467] |
+| 80% | +0.0220 [+0.0031, +0.0406] | +0.0177 [-0.0025, +0.0350] | +0.0445 [+0.0244, +0.0625] |
+| 70% | +0.0421 [+0.0171, +0.0664] | +0.0200 [-0.0043, +0.0436] | +0.0564 [+0.0328, +0.0807] |
+| 60% | +0.0555 [+0.0258, +0.0875] | +0.0255 [-0.0067, +0.0558] | +0.0714 [+0.0417, +0.1025] |
+| 50% | +0.0784 [+0.0410, +0.1160] | +0.0234 [-0.0140, +0.0600] | +0.0954 [+0.0580, +0.1340] |
+
+## What abstention has to beat: the sibling system that was free
+
+`ens_3way_raw.csv` was trained alongside `ens_3way_tuned.csv` and differs only in that its decision thresholds were not tuned. It scores **0.5130** joint exact match at full coverage against 0.4880, so a reader is entitled to ask whether the abstention gain is just the gap between two systems that both already exist.
+
+| coverage | ens_3way_tuned.csv + both signals | ens_3way_raw.csv + both signals | ens_3way_raw.csv alone |
+|---|---:|---:|---:|
+| 100% | 0.4880 [0.4660, 0.5105] | 0.5130 [0.4910, 0.5345] | 0.5130 |
+| 95% | 0.5132 [0.4905, 0.5358] | 0.5321 [0.5095, 0.5542] | -- |
+| 90% | 0.5228 [0.4994, 0.5472] | 0.5389 [0.5161, 0.5617] | -- |
+| 80% | 0.5325 [0.5069, 0.5563] | 0.5463 [0.5212, 0.5700] | -- |
+| 70% | 0.5443 [0.5186, 0.5707] | 0.5614 [0.5357, 0.5879] | -- |
+| 60% | 0.5592 [0.5325, 0.5892] | 0.5758 [0.5483, 0.6058] | -- |
+| 50% | 0.5830 [0.5540, 0.6150] | 0.5970 [0.5660, 0.6270] | -- |
+
+Two things follow, and the first is uncomfortable. Switching systems buys +0.0250 at no cost, while abstaining on 20% of the rows buys +0.0445 on the submitted system -- the same order of magnitude, for a fifth of the output. Anyone choosing between the two should switch first. Second, the two are not the same gain: applying the same abstention signal to the free system carries it to 0.5463 at 80% coverage, so the mechanisms compose rather than substitute.
 
 ## Per field, at 80% coverage
 
@@ -33,7 +73,7 @@ At full coverage: `promise_status` 0.8945, `evidence_status` 0.8015, `evidence_q
 
 What is not deducible is that this matters in practice, and it does: 4.5% of the rows can be flagged as certainly wrong at no cost -- no model, no training, no labels, one pass over the output. That completes an argument the main report left half finished. Forcing those rows onto the legal set costs macro-F1, because the projection trades rare-class recall for majority-class precision. Declining them costs nothing and removes rows that could not have been right. **The same observation supports a bad action and a good one, and the earlier finding ruled out only the bad one.**
 
-Past that point the structural signal is exhausted -- there are only 89 such rows -- and the curve flattens. The criterion features carry on beyond it, and the two together are better at every coverage than either alone.
+Past that point the structural signal is exhausted -- there are only 89 such rows -- and the curve flattens. The criterion features carry on beyond it, and the two together are better at every coverage than either alone -- though the bootstrap bands above overlap, so that ordering is a consistent ranking across coverages and not a significant difference at any one of them.
 
 The criterion signal is a transfer and should be read as one. It was fitted to predict errors in `evidence_quality` and is being asked about four fields, including the 665 rows with no evidence at all, which are outside the distribution it was fitted on.
 

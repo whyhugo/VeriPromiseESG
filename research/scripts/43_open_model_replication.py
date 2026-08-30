@@ -14,7 +14,8 @@ then the behaviour is a property of how this task is posed rather than of any
 particular lab.
 
 The model, prompt, rows and coder are all held identical to script 35, so the
-numbers drop straight into the same table. Qwen3-8B is also the model used for
+numbers drop straight into the same table. The two groups come from
+`probe_groups.py`, which every script that uses them now shares. Qwen3-8B is also the model used for
 the zero-shot attempt in the main report and for the span baseline in script 37,
 so three separate results in this project now sit on one model.
 
@@ -47,6 +48,11 @@ EQ = ["Clear", "Not Clear", "Misleading"]
 DEV = "cuda" if torch.cuda.is_available() else "cpu"
 
 _keep_ours = sys.stdout
+_pspec = importlib.util.spec_from_file_location(
+    "probe_groups", os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                 "probe_groups.py"))
+pg = importlib.util.module_from_spec(_pspec)
+_pspec.loader.exec_module(pg)
 _spec = importlib.util.spec_from_file_location(
     "s35", os.path.join(os.path.dirname(os.path.abspath(__file__)),
                         "35_explanation_probe.py"))
@@ -64,25 +70,9 @@ def main():
     ap.add_argument("--report-only", action="store_true")
     args = ap.parse_args()
 
-    rng = np.random.default_rng(SEED)
-    te = s35.load("vpesg4k_test_2000.csv")
-    rows = {r["id"]: r for r in te
-            if s35.na(r["evidence_status"]) == "Yes"
-            and s35.na(r["evidence_quality"]) in EQ}
-    frontier = {}
-    for f in sorted(os.listdir(S26)):
-        if f.endswith(".json"):
-            got = json.load(open(os.path.join(S26, f), encoding="utf-8"))
-            frontier[f.split("__")[0]] = {k: (v[0] or "Clear") for k, v in got.items()}
-    names = sorted(frontier)
-    ids = [i for i in rows if all(i in frontier[m] for m in names)]
-    unan = [i for i in ids if len({frontier[m][i] for m in names}) == 1]
-    wrong = [i for i in unan
-             if frontier[names[0]][i] != s35.na(rows[i]["evidence_quality"])]
-    right = [i for i in unan
-             if frontier[names[0]][i] == s35.na(rows[i]["evidence_quality"])]
-    ctrl = [right[k] for k in rng.choice(len(right), size=min(N_CONTROL, len(right)),
-                                         replace=False)]
+    g = pg.groups(args.model.replace("/", "_"))
+    rows, frontier, names = g["rows"], g["verdict"], g["models"]
+    wrong, ctrl = g["disputed"], g["control"]
     if args.limit:
         wrong, ctrl = wrong[:args.limit], ctrl[:args.limit]
     probe = wrong + ctrl
@@ -133,6 +123,13 @@ def main():
         return (np.mean(["unstated: no concrete figures" in s35.code(r) for r in v])
                 if v else float("nan"))
 
+    def reran(name, d, ids):
+        """Share of rows where the reason run gave a different label than the
+        label-only run that defined the groups."""
+        k = [i for i in ids if i in d and d[i][0] and frontier[name].get(i)]
+        return (np.mean([d[i][0] != frontier[name][i] for i in k])
+                if k else float("nan"))
+
     def acc(d, ids):
         k = [i for i in ids if i in d and d[i][0]]
         return (np.mean([d[i][0] == s35.na(rows[i]["evidence_quality"]) for i in k])
@@ -160,11 +157,12 @@ def main():
       "numbers are directly comparable with the four frontier models."
       % (args.model, len(probe)))
     A("")
+    A(pg.provenance(g))
+    A("")
     A("The two groups were defined by the *frontier* models -- the %d rows on "
-      "which all four agreed and differed from the gold label, and a %d-row "
-      "control drawn from the rows they agreed and matched. This model had no "
-      "part in defining them, so the split is independent of it."
-      % (len(wrong), len(ctrl)))
+      "which all four agreed and differed from the gold label, and the %d rows "
+      "where they agreed and matched. This model had no part in defining them, "
+      "so the split is independent of it." % (len(wrong), len(ctrl)))
     A("")
     A("| model | kind | cites missing figures: control | disputed | difference |")
     A("|---|---|---:|---:|---:|")
@@ -179,11 +177,23 @@ def main():
 
     A("## Does leaning on the heuristic less mean agreeing with the annotators more?")
     A("")
-    A("The disputed rows are by construction ones the four frontier models all "
-      "got wrong, so their accuracy there is zero by definition and only the "
-      "open models give a usable reading. The control column is the check that "
-      "matters: a model that simply says `Clear` more often would score better "
-      "on the disputed rows and worse on the control ones.")
+    A("The disputed rows are the ones the four frontier models got wrong when "
+      "asked for a label alone (script 26), so their accuracy there is near "
+      "zero by construction and only the open models give a usable reading. It "
+      "is not exactly zero because these columns read the second run, where the "
+      "same models were asked for a label *and* a reason (script 35), and a "
+      "model does not always repeat itself: the frontier models land on a "
+      "different label than they did in script 26 on %.0f%%-%.0f%% of the "
+      "disputed rows and %.0f%%-%.0f%% of the control rows. That instability is small "
+      % tuple(100 * f([reran(nm2, d, ids) for nm2, kind, d in fleet
+                       if kind == "frontier API"])
+              for ids in (wrong, ctrl) for f in (min, max)) +
+      "next to the effect being measured, and it is reported rather than hidden "
+      "because the groups were fixed by the first run.")
+    A("")
+    A("The control column is the check that matters: a model that simply says "
+      "`Clear` more often would score better on the disputed rows and worse on "
+      "the control ones.")
     A("")
     A("| model | kind | cites missing figures (disputed) | co-occurrence | "
       "accuracy: control | disputed | says Clear: control | disputed |")
@@ -191,9 +201,10 @@ def main():
     for nm2, kind, d in fleet:
         cl_c = np.mean([d[i][0] == "Clear" for i in ctrl if i in d and d[i][0]])
         cl_w = np.mean([d[i][0] == "Clear" for i in wrong if i in d and d[i][0]])
-        A("| %s | %s | %.3f | %.3f | %.3f | %.3f | %.0f%% | %.0f%% |"
+        co = cooc(d, wrong)
+        A("| %s | %s | %.3f | %s | %.3f | %.3f | %.0f%% | %.0f%% |"
           % (nm2, kind, rate(d, wrong, "unstated: no concrete figures"),
-             cooc(d, wrong), acc(d, ctrl), acc(d, wrong),
+             "--" if co != co else "%.3f" % co, acc(d, ctrl), acc(d, wrong),
              100 * cl_c, 100 * cl_w))
     A("")
     A("Gold on these rows: %.0f%% `Clear` on the control set, %.0f%% on the "

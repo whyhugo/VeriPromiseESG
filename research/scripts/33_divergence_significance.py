@@ -117,9 +117,10 @@ def main():
     for f in sorted(os.listdir(S26)):
         if f.endswith(".json"):
             got = json.load(open(os.path.join(S26, f), encoding="utf-8"))
-            preds[f.split("__")[0]] = {k: (v[0] or "Clear") for k, v in got.items()}
+            # an empty verdict is a failed API call, not a `Clear`
+            preds[f.split("__")[0]] = {k: (v[0] or "") for k, v in got.items()}
     models = sorted(preds)
-    ids = [i for i in rows if all(i in preds[m] for m in models)]
+    ids = [i for i in rows if all(i in preds[m] and preds[m][i] for m in models)]
     unan = [i for i in ids if len({preds[m][i] for m in models}) == 1]
     wrong = [i for i in unan if preds[models[0]][i] != na(rows[i]["evidence_quality"])]
     right = [i for i in unan if preds[models[0]][i] == na(rows[i]["evidence_quality"])]

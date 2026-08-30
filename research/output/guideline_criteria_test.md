@@ -21,7 +21,7 @@ That makes the divergence finding testable in a way it was not before. The quest
 
 ## Setup
 
-Two groups, as in script 33: the **621** rows where all four frontier models agree with each other and match the gold label, and the **149** where they agree and all four differ from it. Family A and family B are computed on `evidence_string`, which is what the guideline says to assess; family C is computed on the whole paragraph, matching script 33. Of the 1335 eligible rows, 1335 (100%) carry an `evidence_string` and 1335 (100%) a `promise_string`.
+Two groups, as in script 33: the **595** rows where all four frontier models agree with each other and match the gold label, and the **147** where they agree and all four differ from it. A row counts only if all four models actually answered it -- `gemini-3.7-flash` returned HTTP 503 on 80 -- which leaves 1255 of the 1335 eligible rows. Family A and family B are computed on `evidence_string`, which is what the guideline says to assess; family C is computed on the whole paragraph, matching script 33. Of the 1335 eligible rows, 1335 (100%) carry an `evidence_string` and 1335 (100%) a `promise_string`.
 
 ## Does each criterion separate the disputed rows?
 
@@ -30,9 +30,9 @@ Two groups, as in script 33: the **621** rows where all four frontier models agr
 | feature | unanimous & right | unanimous & wrong | difference | p | p (Holm, within family) |
 |---|---:|---:|---:|---:|---:|
 | hedge phrase, verbatim from DATA.md | 0.000 | 0.000 | +0.000 | 1 | 1 |
-| any hedge word present (our extension) | 0.446 | 0.537 | +0.091 | 0.046 | 0.092 |
-| count of distinct hedge words | 0.758 | 1.060 | +0.302 | 0.0043 | **0.013** |
-| hedge characters per 100 | 0.610 | 1.266 | +0.656 | 0.0001 | **0.0004** |
+| any hedge word present (our extension) | 0.445 | 0.537 | +0.092 | 0.045 | 0.09 |
+| count of distinct hedge words | 0.761 | 1.061 | +0.300 | 0.0043 | **0.013** |
+| hedge characters per 100 | 0.612 | 1.269 | +0.657 | 0.0001 | **0.0004** |
 
 2 of 4 survive correction.
 
@@ -40,10 +40,10 @@ Two groups, as in script 33: the **621** rows where all four frontier models agr
 
 | feature | unanimous & right | unanimous & wrong | difference | p | p (Holm, within family) |
 |---|---:|---:|---:|---:|---:|
-| promise-evidence character Jaccard | 0.155 | 0.168 | +0.013 | 0.26 | 0.26 |
-| share of evidence not in the promise | 0.775 | 0.733 | -0.042 | 0.022 | 0.066 |
-| evidence length in characters | 150.052 | 93.698 | -56.354 | 0.0001 | **0.0004** |
-| evidence length / promise length | 4.435 | 2.533 | -1.902 | 0.046 | 0.091 |
+| promise-evidence character Jaccard | 0.156 | 0.169 | +0.013 | 0.29 | 0.29 |
+| share of evidence not in the promise | 0.772 | 0.733 | -0.039 | 0.03 | 0.09 |
+| evidence length in characters | 148.689 | 93.810 | -54.880 | 0.0001 | **0.0004** |
+| evidence length / promise length | 4.383 | 2.552 | -1.832 | 0.058 | 0.12 |
 
 1 of 4 survive correction.
 
@@ -51,40 +51,40 @@ Two groups, as in script 33: the **621** rows where all four frontier models agr
 
 | feature | unanimous & right | unanimous & wrong | difference | p | p (Holm, within family) |
 |---|---:|---:|---:|---:|---:|
-| a year or date | 0.754 | 0.362 | -0.391 | 4.4e-20 | **3.5e-19** |
-| any digit | 0.868 | 0.544 | -0.324 | 2.8e-19 | **1.9e-18** |
-| a percentage | 0.314 | 0.074 | -0.240 | 2.7e-09 | **1.4e-08** |
-| a unit of measure | 0.639 | 0.362 | -0.277 | 7.2e-10 | **4.3e-09** |
-| a named party | 0.335 | 0.268 | -0.066 | 0.12 | 0.12 |
-| a monetary amount | 0.097 | 0.000 | -0.097 | 7.8e-05 | **0.00031** |
-| third-party assurance | 0.180 | 0.107 | -0.073 | 0.032 | 0.063 |
-| digits per 100 characters | 6.179 | 1.995 | -4.184 | 0.0001 | **0.00031** |
+| a year or date | 0.753 | 0.354 | -0.399 | 2.3e-20 | **1.9e-19** |
+| any digit | 0.867 | 0.537 | -0.330 | 2.6e-19 | **1.8e-18** |
+| a percentage | 0.316 | 0.075 | -0.241 | 3.4e-09 | **1.7e-08** |
+| a unit of measure | 0.634 | 0.354 | -0.280 | 7.6e-10 | **4.6e-09** |
+| a named party | 0.328 | 0.259 | -0.069 | 0.11 | 0.11 |
+| a monetary amount | 0.094 | 0.000 | -0.094 | 0.00011 | **0.0004** |
+| third-party assurance | 0.183 | 0.102 | -0.081 | 0.018 | **0.036** |
+| digits per 100 characters | 6.249 | 1.974 | -4.276 | 0.0001 | **0.0004** |
 
-6 of 8 survive correction.
+7 of 8 survive correction.
 
 ## Which criterion predicts whom?
 
 A criterion that explains the annotators should predict the **gold label**; one that explains the models should predict the **models' consensus**. Each family is fitted as a logistic regression and scored by out-of-fold balanced accuracy over five folds, so 0.500 is chance.
 
-The gold column uses the 1332 eligible rows with a `Clear` / `Not Clear` gold label; the consensus column uses the 766 unanimous rows.
+The gold column uses the 1332 eligible rows with a `Clear` / `Not Clear` gold label and does not depend on the models at all; the consensus column uses the 738 unanimous rows whose shared answer is one of those two labels. **The two columns are not on the same rows**, and the unanimous rows are easier by construction -- they were selected for agreement -- so the gap should be read as a direction, not a magnitude.
 
 | criterion | predicts the gold label | predicts the models' consensus | gap |
 |---|---|---|---:|
-| the guideline's stated criterion: vague wording | 0.592 [0.561, 0.623] | 0.654 [0.616, 0.690] | +0.062 |
-| the guideline's stated criterion: link to the promise | 0.675 [0.645, 0.705] | 0.708 [0.674, 0.743] | +0.033 |
-| this project's surface concreteness cues | 0.690 [0.657, 0.723] | 0.786 [0.752, 0.818] | +0.096 |
+| the guideline's stated criterion: vague wording | 0.592 [0.561, 0.623] | 0.659 [0.622, 0.695] | +0.067 |
+| the guideline's stated criterion: link to the promise | 0.675 [0.643, 0.706] | 0.716 [0.683, 0.749] | +0.041 |
+| this project's surface concreteness cues | 0.690 [0.655, 0.723] | 0.803 [0.768, 0.835] | +0.113 |
 
 ## Reading
 
 Three things fall out, and only the third is the one this script set out to look for.
 
-**The guideline's only worked example never fires.** DATA.md gives two phrases as its illustration of vague wording. Across all 770 unanimous rows, neither phrase occurs even once -- in either group. The single piece of operational guidance the organisers supply has no purchase on the data it is meant to govern.
+**The guideline's only worked example never fires.** DATA.md gives two phrases as its illustration of vague wording. Across all 742 unanimous rows, neither phrase occurs even once -- in either group. The single piece of operational guidance the organisers supply has no purchase on the data it is meant to govern.
 
 **The guideline's stated criterion is the weakest predictor of the annotators.** Reproducing the gold label from vague wording alone gives 0.592 balanced accuracy against a chance floor of 0.500. Its link criterion reaches 0.675, and the concreteness cues the guideline never mentions reach 0.690. The criterion the organisers wrote down is the one that least explains the labels they produced.
 
-**Every criterion describes the models better than the annotators.** The gap column is positive in all three rows: +0.062, +0.033, +0.096. Whatever rule one writes down, four frontier models follow it more consistently than the human labelling does. That is the finding, and it does not require deciding that either side is wrong. The models behave like a rule-governed system; the annotation behaves like a judgement that no one of these three rules captures.
+**Every criterion describes the models better than the annotators.** The gap column is positive in all three rows: +0.067, +0.041, +0.113. Whatever rule one writes down, four frontier models follow it more consistently than the human labelling does. That is the finding, and it does not require deciding that either side is wrong. The models behave like a rule-governed system; the annotation behaves like a judgement that no one of these three rules captures.
 
-One nuance cuts against the earlier framing and should be stated. On the disputed rows the models are not obviously ignoring the guideline: those rows carry **more** hedge wording (1.27 vs 0.61 hedge characters per 100) and **shorter** evidence (94 vs 150 characters), both of which point toward `Not Clear` under the guideline's own wording. The models' call is defensible on the stated criterion; the annotators called them `Clear` anyway. So the correct claim is not "the models substituted a worse criterion" but the weaker and better-supported one: **the stated criterion does not determine these labels, and the models resolve the residue with surface concreteness while the annotators resolve it with something none of these features capture.**
+One nuance cuts against the earlier framing and should be stated. On the disputed rows the models are not obviously ignoring the guideline: those rows carry **more** hedge wording (1.27 vs 0.61 hedge characters per 100) and **shorter** evidence (94 vs 149 characters), both of which point toward `Not Clear` under the guideline's own wording. The models' call is defensible on the stated criterion; the annotators called them `Clear` anyway. So the correct claim is not "the models substituted a worse criterion" but the weaker and better-supported one: **the stated criterion does not determine these labels, and the models resolve the residue with surface concreteness while the annotators resolve it with something none of these features capture.**
 
 This supersedes how earlier reports put it. The claim there was that the guideline gives no criteria. It gives two; they are simply not operationalised, and the one example offered to operationalise them matches nothing in the corpus.
 

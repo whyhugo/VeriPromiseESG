@@ -63,6 +63,13 @@ SEED = 20260829
 EQ = ["Clear", "Not Clear", "Misleading"]
 COVERAGES = [1.0, 0.95, 0.9, 0.8, 0.7, 0.6, 0.5]
 
+# A single random ordering is one draw from a wide distribution, and reading a
+# curve off it invites the reader to compare a real signal against noise. The
+# random column below is the mean over N_RANDOM orderings; the bands on every
+# column come from resampling the test rows.
+N_RANDOM = 200
+N_BOOT = 2000
+
 _keep_ours = sys.stdout
 _spec = importlib.util.spec_from_file_location(
     "s34", os.path.join(os.path.dirname(os.path.abspath(__file__)),
@@ -105,6 +112,69 @@ def risk_coverage(y, pred, score):
                                     zero_division=0)),
                      float(balanced_accuracy_score(y[k], pred[k]))))
     return rows
+
+
+def boot_coverage(y, pred, score, rng, n=N_BOOT):
+    """Percentile bands for the kept-set accuracy at each coverage.
+
+    The whole selective procedure is repeated inside each resample -- rank the
+    resampled rows, keep the top fraction, score what is kept -- so the band
+    covers the variability of the procedure and not just of a fixed subset.
+    """
+    m = len(y)
+    out = {c: [] for c in COVERAGES}
+    for _ in range(n):
+        b = rng.integers(0, m, m)
+        order = b[np.argsort(score[b], kind="stable")]
+        for c in COVERAGES:
+            k = order[:max(2, int(round(c * m)))]
+            out[c].append((pred[k] == y[k]).mean())
+    return {c: (float(np.percentile(v, 2.5)), float(np.percentile(v, 97.5)))
+            for c, v in out.items()}
+
+
+def paired_boot(y, pred, scores, ref, rng, n=N_BOOT):
+    """Bands for (signal - ref) at each coverage, both ranked in the same draw.
+
+    A signal's own band is mostly the variance of the base accuracy, which
+    every signal shares; differencing inside the resample removes it.
+    """
+    m = len(y)
+    keys = [k for k in scores if k != ref]
+    out = {k: {c: [] for c in COVERAGES} for k in keys}
+    for _ in range(n):
+        b = rng.integers(0, m, m)
+        acc = {}
+        for k, sc in scores.items():
+            # a fresh ordering each draw, so the null is "any random ordering"
+            # rather than "this one particular one"
+            sc = rng.random(m) if k == "random" else sc
+            order = b[np.argsort(sc[b], kind="stable")]
+            acc[k] = {c: (pred[o] == y[o]).mean()
+                      for c in COVERAGES
+                      for o in [order[:max(2, int(round(c * m)))]]}
+        for k in keys:
+            for c in COVERAGES:
+                out[k][c].append(acc[k][c] - acc[ref][c])
+    return {k: {c: (float(np.percentile(v, 2.5)), float(np.percentile(v, 97.5)))
+                for c, v in d.items()} for k, d in out.items()}
+
+
+def random_curve(y, pred, rng, n=N_RANDOM):
+    """Mean accuracy and macro-F1 at each coverage over `n` random orderings."""
+    acc = {c: [] for c in COVERAGES}
+    mf1 = {c: [] for c in COVERAGES}
+    for _ in range(n):
+        order = rng.permutation(len(y))
+        for c in COVERAGES:
+            k = order[:max(2, int(round(c * len(y))))]
+            acc[c].append((pred[k] == y[k]).mean())
+            mf1[c].append(f1_score(y[k], pred[k], average="macro",
+                                   zero_division=0))
+    return ([(c, 0, float(np.mean(acc[c])), float(np.mean(mf1[c])), 0.0)
+             for c in COVERAGES],
+            {c: (float(np.percentile(acc[c], 2.5)),
+                 float(np.percentile(acc[c], 97.5))) for c in COVERAGES})
 
 
 def auarc(y, pred, score, grid=None):
@@ -155,6 +225,12 @@ def main():
     SIGNALS["both"] = (m2.predict_proba(Atr)[:, 1], m2.predict_proba(Ate)[:, 1])
     SIGNALS["random"] = (rng.random(len(ytr)), rng.random(len(yte)))
 
+    rand_curve, rand_band = random_curve(yte, pred_te, rng)
+    rand_auc = float(np.mean([roc_auc_score(err_te, rng.permutation(len(yte)))
+                              for _ in range(N_RANDOM)]))
+    rand_auarc = float(np.mean([auarc(yte, pred_te, rng.permutation(len(yte)))
+                                for _ in range(N_RANDOM)]))
+
     L = []
     A = L.append
     A("# Declining the rows the text does not decide")
@@ -181,6 +257,10 @@ def main():
     A("| signal | AUC for predicting an error | area under accuracy-coverage |")
     A("|---|---:|---:|")
     for k, (_, s_te) in SIGNALS.items():
+        if k == "random":
+            A("| random (mean of %d orderings) | %.4f | %.4f |"
+              % (N_RANDOM, rand_auc, rand_auarc))
+            continue
         A("| %s | %.4f | %.4f |"
           % (k, roc_auc_score(err_te, s_te), auarc(yte, pred_te, s_te)))
     A("")
@@ -193,10 +273,60 @@ def main():
         "%s acc." % k for k in SIGNALS) + " |")
     A("|---" * (2 + len(SIGNALS)) + "|")
     curves = {k: risk_coverage(yte, pred_te, s) for k, (_, s) in SIGNALS.items()}
+    curves["random"] = rand_curve
+    bands = {k: boot_coverage(yte, pred_te, s, np.random.default_rng(SEED + j))
+             for j, (k, (_, s)) in enumerate(SIGNALS.items()) if k != "random"}
+    bands["random"] = rand_band
     for i, c in enumerate(COVERAGES):
         A("| %.0f%% | %d | %s |"
           % (100 * c, curves["confidence"][i][1],
              " | ".join("%.4f" % curves[k][i][2] for k in SIGNALS)))
+    A("")
+    A("Bootstrap 95%% bands for the same accuracies (%d resamples of the test "
+      "rows, re-ranking inside each resample; the random column is the "
+      "2.5th-97.5th percentile over %d orderings)."
+      % (N_BOOT, N_RANDOM))
+    A("")
+    A("| coverage | " + " | ".join("%s" % k for k in SIGNALS) + " |")
+    A("|---" * (1 + len(SIGNALS)) + "|")
+    for c in COVERAGES:
+        A("| %.0f%% | %s |"
+          % (100 * c, " | ".join("[%.4f, %.4f]" % bands[k][c] for k in SIGNALS)))
+    A("")
+    A("Those bands are wide because most of what they contain is the variance "
+      "of the base accuracy, which every column shares. The comparison to read "
+      "is the paired one: the same resample, both rankings, the difference "
+      "between them. Against a random ordering at the same coverage:")
+    A("")
+    diffs = paired_boot(yte, pred_te,
+                        {k: v[1] for k, v in SIGNALS.items()}, "random",
+                        np.random.default_rng(SEED + 77))
+    keys = [k for k in SIGNALS if k != "random"]
+    A("| coverage | " + " | ".join("%s - random" % k for k in keys) + " |")
+    A("|---" * (1 + len(keys)) + "|")
+    for c in COVERAGES:
+        A("| %.0f%% | %s |"
+          % (100 * c, " | ".join("%+.4f [%+.4f, %+.4f]"
+                                 % (curves[k][COVERAGES.index(c)][2]
+                                    - rand_curve[COVERAGES.index(c)][2],
+                                    diffs[k][c][0], diffs[k][c][1])
+                                 for k in keys)))
+    A("")
+    d2 = paired_boot(yte, pred_te,
+                     {k: SIGNALS[k][1] for k in ["confidence", "criterion", "both"]},
+                     "confidence", np.random.default_rng(SEED + 78))
+    A("And against the standard practice, the model's own confidence:")
+    A("")
+    A("| coverage | criterion - confidence | both - confidence |")
+    A("|---|---|---|")
+    for c in COVERAGES:
+        i = COVERAGES.index(c)
+        A("| %.0f%% | %+.4f [%+.4f, %+.4f] | %+.4f [%+.4f, %+.4f] |"
+          % (100 * c,
+             curves["criterion"][i][2] - curves["confidence"][i][2],
+             d2["criterion"][c][0], d2["criterion"][c][1],
+             curves["both"][i][2] - curves["confidence"][i][2],
+             d2["both"][c][0], d2["both"][c][1]))
     A("")
     A("| coverage | " + " | ".join("%s macro-F1" % k for k in SIGNALS) + " |")
     A("|---" * (1 + len(SIGNALS)) + "|")
