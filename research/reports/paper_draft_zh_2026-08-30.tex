@@ -190,31 +190,33 @@ VeriPromiseESG4K 含 4,000 個段落，取自 49 家台灣上市公司的 2024 �
 \begin{figure}[h]
 \centering
 \begin{tikzpicture}[
+  % anchor=north：每格由上緣往下長，行數不同也不會往上撞到鄰列
   box/.style={draw, rounded corners=2pt, align=center, font=\small,
-              inner sep=3pt, text width=30mm},
+              inner sep=4pt, text width=32mm, anchor=north},
   ar/.style={->, gray}]
 
-\node[box, fill=blue!10, draw=blue!50, text width=52mm] (q) at (5.6,3.4)
+\node[box, fill=blue!10, draw=blue!50, text width=64mm] (q) at (5.85,6.2)
   {\textbf{為什麼子任務\textcircled{3}這麼難？}};
 
-\node[box, fill=gray!12] (a) at (0,1.9) {解釋一\\標籤有雜訊};
-\node[box, fill=gray!12] (b) at (3.7,1.9) {解釋二\\模型能力不足};
-\node[box, fill=gray!12] (c) at (7.4,1.9) {解釋三\\任務形式化錯誤};
-\node[box, fill=green!14, draw=green!50!black] (d) at (11.1,1.9)
+\node[box, fill=gray!12]  (a) at (0,    5.0) {解釋一\\標籤有雜訊};
+\node[box, fill=gray!12]  (b) at (3.9,  5.0) {解釋二\\模型能力不足};
+\node[box, fill=gray!12]  (c) at (7.8,  5.0) {解釋三\\任務形式化錯誤};
+\node[box, fill=green!14, draw=green!50!black] (d) at (11.7,5.0)
   {\textbf{解釋四}\\\textbf{判準沒有隨資料釋出}};
 
-\node[box, fill=gray!4] (a2) at (0,0) {\textbf{排除}\\標註者一致度\\$\alpha=0.940$};
-\node[box, fill=gray!4] (b2) at (3.7,0)
+\node[box, fill=gray!4]   (a2) at (0,   3.0)
+  {\textbf{排除}\\標註者一致度\\$\alpha = 0.940$};
+\node[box, fill=gray!4]   (b2) at (3.9, 3.0)
   {\textbf{排除}\\四個前沿模型\\0.354--0.449\\低於本文的 0.466};
-\node[box, fill=gray!4] (c2) at (7.4,0)
+\node[box, fill=gray!4]   (c2) at (7.8, 3.0)
   {\textbf{排除}\\六種輸入差異\\皆小於 0.005\\而對照組 $-0.0185$};
-\node[box, fill=green!8, draw=green!50!black] (d2) at (11.1,0)
-  {\textbf{成立}\\官方判準重現正解\\僅 0.592／0.675\\低於官方未提的 0.690};
+\node[box, fill=green!8, draw=green!50!black] (d2) at (11.7,3.0)
+  {\textbf{成立}\\官方判準重現正解\\僅 0.592／0.675\\低於未提及的 0.690};
 
-\draw[ar] (q) -- (a); \draw[ar] (q) -- (b);
-\draw[ar] (q) -- (c); \draw[ar] (q) -- (d);
-\draw[ar] (a) -- (a2); \draw[ar] (b) -- (b2);
-\draw[ar] (c) -- (c2); \draw[ar] (d) -- (d2);
+\draw[ar] (q.south) -- (a.north); \draw[ar] (q.south) -- (b.north);
+\draw[ar] (q.south) -- (c.north); \draw[ar] (q.south) -- (d.north);
+\draw[ar] (a.south) -- (a2.north); \draw[ar] (b.south) -- (b2.north);
+\draw[ar] (c.south) -- (c2.north); \draw[ar] (d.south) -- (d2.north);
 \end{tikzpicture}
 \caption{論證結構。三種替代解釋各以一項獨立量測排除，第四種被四項證據支持。}
 \label{fig:arg}
@@ -509,7 +511,8 @@ Qwen3-8B 零樣本單獨 & 0.3914 & 0.7700 & $-0.0352\ [-0.0614, -0.0105]$ \\
 本文出現了兩個方向相反的集成結果，值得放在一起解釋。四個前沿模型投票\textbf{沒有
 增益}；一個微調 transformer 與一個零樣本開源模型的組合\textbf{有增益}。集成理論對此
 有現成的答案——平均只在成員\textbf{錯得不一樣}時有價值——而本文剛好可以直接量那個
-量：兩個系統的錯誤向量之間的相關係數 $\phi$。
+量：兩個系統的錯誤向量之間的相關係數 $\phi$。圖~\ref{fig:vote} 是本文量到的
+兩個點，以及兩個尚未量測的位置。
 
 \begin{figure}[h]
 \centering
@@ -526,7 +529,7 @@ Qwen3-8B 零樣本單獨 & 0.3914 & 0.7700 & $-0.0352\ [-0.0614, -0.0105]$ \\
 \node[b, fill=green!14] (het) at (11.4,0)
   {\textbf{異質組合}\\$\phi = +0.307$\\準確率 $+0.0247$};
 \draw[ar] (f5) -- (bb); \draw[ar] (bb) -- (fr); \draw[ar] (fr) -- (het);
-\node[font=\small\itshape] at (5.7,-1.5)
+\node[font=\small\itshape] at (5.7,-2.2)
   {成員錯誤相關係數 $\phi$ 愈低，平均愈有價值};
 \end{tikzpicture}
 \caption{本文量到的兩個點（右二），以及尚未量測的兩個（左二，灰）。灰色兩格的
