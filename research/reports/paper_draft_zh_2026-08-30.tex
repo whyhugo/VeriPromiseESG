@@ -48,9 +48,9 @@
 \begin{abstract}
 \noindent
 ESG 永續報告書的「佐證品質」判斷，是 AI CUP 2026 VeriPromiseESG 四個子任務中表現
-最差的一項——官方 baseline macro-F1 僅 0.3599，我們奪冠的系統也只有 0.4642。本文
-不再嘗試提高它，而是問\textbf{困難的來源是什麼}，並證明它與其他三個子任務的困難
-性質不同。
+最差的一項——官方 baseline macro-F1 僅 0.3599，而一套三種預訓練編碼器 $\times$
+五折交叉驗證的軟投票集成也只有 0.4642。本文不再嘗試提高它，而是問\textbf{困難的來源
+是什麼}，並證明它與其他三個子任務的困難性質不同。
 
 \medskip
 我們以四道相互獨立的檢驗排除了標註雜訊、模型能力與任務形式化三種解釋，並指出
@@ -67,9 +67,9 @@ ESG 永續報告書的「佐證品質」判斷，是 AI CUP 2026 VeriPromiseESG 
 一個從未被任何系統使用的標註資源變成可用任務（承諾抽取字元 F1 0.4434 $\to$ 0.5903）；
 一個\textbf{棄權層}，使用不看模型內部的文字特徵，在 80\% 覆蓋率下把整列聯合正確率
 從 0.4880 提升到 0.5325；以及一個\textbf{異質組合}，把偏誤強度不同的模型平均，使
-準確率從 0.8052 提升到 0.8300。最後我們指出，這三者與競賽系統原本的五折軟投票
-（5-fold soft voting）是同一個機制的不同強度，而其有效程度由成員之間的\textbf{錯誤
-相關係數}決定——這正是本文診斷所量測的量。
+準確率從 0.8052 提升到 0.8300。我們並以\textbf{成員之間的錯誤相關係數}解釋為什麼
+同樣是集成，四個前沿模型投票無效（$\phi = +0.498$）而上述異質組合有效
+（$\phi = +0.307$）。
 
 \medskip
 \textbf{關鍵詞}：ESG、承諾驗證、標註判準、選擇性預測、集成學習、繁體中文
@@ -86,8 +86,10 @@ ESG 永續報告書的「佐證品質」判斷，是 AI CUP 2026 VeriPromiseESG 
 VeriPromiseESG 把這個問題形式化為四個段落層級的分類子任務，其中\textbf{佐證品質}
 （\fn{evidence\_quality}）權重最高也最難。
 
-我們的系統在該競賽私榜第一名。但四個子任務的成績極不平均，而最差的一項在所有參賽者
-與官方 baseline 上同樣最差。本文處理的問題不是「怎麼再高一點」，而是：
+本文使用的系統是一套\textbf{三種中文預訓練編碼器 $\times$ 五折交叉驗證的軟投票
+集成}（詳見第 \ref{sec:system} 節），它在該競賽私榜取得第一名。名次本身不是本文的
+論點——四個子任務的成績極不平均，而最差的那一項在所有參賽者與官方 baseline 上同樣
+最差。本文處理的問題不是「怎麼再高一點」，而是：
 
 \begin{tcolorbox}[colback=blue!5, colframe=blue!55]
 \textbf{這個子任務的困難來自哪裡？它與其他三個子任務的困難是同一種嗎？如果不是，
@@ -103,8 +105,8 @@ VeriPromiseESG 把這個問題形式化為四個段落層級的分類子任務�
         系統（含官方 baseline）使用。我們指出正確的文字單元是\textbf{子句}而非句子，
         並建成模型（第 \ref{sec:tagger} 節）。
   \item \textbf{兩個把診斷變成系統行為的機制}：棄權與異質組合（第 \ref{sec:act} 節）。
-  \item \textbf{一個貫穿全文的解釋}：軟投票的有效程度由成員錯誤相關係數決定，而本文
-        的診斷正好量測了它（第 \ref{sec:voting} 節）。
+  \item \textbf{一個對集成何時有效的解釋}：以成員錯誤相關係數說明為什麼前沿模型
+        投票無效而異質組合有效（第 \ref{sec:voting} 節）。
 \end{enumerate}
 
 % ===========================================================================
@@ -132,6 +134,27 @@ VeriPromiseESG4K 含 4,000 個段落，取自 49 家台灣上市公司的 2024 �
 \caption{四個子任務與兩個未被使用的跨度欄位。$\alpha$ 為 Krippendorff's Alpha，
 主辦方報告值。}
 \end{table}
+
+\subsection{本文使用的系統}
+\label{sec:system}
+
+本文多處以「我們的系統」為比較對象或預測來源，其架構如下：
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}ll@{}}
+\toprule
+成員 & \fn{chinese-roberta-wwm-ext-large}、\fn{chinese-macbert-large}、
+       \fn{Erlangshen-DeBERTa-v2-320M} \\
+訓練 & 每個編碼器在訓練＋驗證 2,000 列上做\textbf{五折交叉驗證}，共 15 個模型 \\
+推論 & 15 個模型對每個測試段落各輸出一組類別機率，\textbf{取平均}後取最大者 \\
+規模 & 每個編碼器約 3 億參數 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+這就是所謂\textbf{軟投票}（soft voting）：平均的是\textbf{機率}而非票數，因此保留了
+每個成員的不確定性。第 \ref{sec:voting} 節會回到這個設計。
 
 \paragraph{兩個必須先講清楚的性質} 第一，\textbf{標註者一致度很高}（\textcircled{3}
 為 0.940），所以困難不能歸因於「標籤太主觀」。第二，\textcircled{3} 的
@@ -453,12 +476,13 @@ Qwen3-8B 零樣本單獨 & 0.3914 & 0.7700 & $-0.0352\ [-0.0614, -0.0105]$ \\
 \end{table}
 
 % ===========================================================================
-\section{一條貫穿全文的線：軟投票何時有效}
+\section{討論：集成何時有效}
 \label{sec:voting}
 
-我們的競賽系統核心是\textbf{五折軟投票}（5-fold soft voting）：訓練 K 個模型、平均
-其機率輸出。本文的三項延伸結果其實都是同一個機制，差別只在\textbf{成員之間錯得有多
-不一樣}。我們可以直接量它——以錯誤向量之間的相關係數 $\phi$ 表示。
+本文出現了兩個方向相反的集成結果，值得放在一起解釋。四個前沿模型投票\textbf{沒有
+增益}；一個微調 transformer 與一個零樣本開源模型的組合\textbf{有增益}。集成理論對此
+有現成的答案——平均只在成員\textbf{錯得不一樣}時有價值——而本文剛好可以直接量那個
+量：兩個系統的錯誤向量之間的相關係數 $\phi$。
 
 \begin{figure}[h]
 \centering
@@ -466,15 +490,20 @@ Qwen3-8B 零樣本單獨 & 0.3914 & 0.7700 & $-0.0352\ [-0.0614, -0.0105]$ \\
   b/.style={draw, rounded corners=2pt, align=center, font=\small, inner sep=4pt,
             text width=33mm, minimum height=13mm},
   ar/.style={-{Stealth[length=2mm]}, gray!70}]
-\node[b, fill=gray!12] (f5) {\textbf{五折軟投票}\\同一模型、同一偏誤\\$\phi$ 最高};
-\node[b, fill=gray!8, right=7mm of f5] (bb) {\textbf{三種 backbone}\\偏誤仍高度共享\\增益 $\approx +0.03$};
-\node[b, fill=red!8, right=7mm of bb] (fr) {\textbf{四個前沿模型}\\$\phi = +0.498$\\\textbf{投票無效}};
-\node[b, fill=green!14, right=7mm of fr] (het) {\textbf{異質組合}\\$\phi = +0.307$\\\textbf{準確率} $+0.0247$};
+\node[b, fill=gray!6, draw=gray!45] (f5)
+  {五折之間\\{\small$\phi$ \textit{未量測}}};
+\node[b, fill=gray!6, draw=gray!45, right=7mm of f5] (bb)
+  {三種 backbone 之間\\{\small$\phi$ \textit{未量測}}\\增益 $\approx +0.03$};
+\node[b, fill=red!8, right=7mm of bb] (fr)
+  {\textbf{四個前沿模型}\\$\phi = +0.498$\\\textbf{無增益}};
+\node[b, fill=green!14, right=7mm of fr] (het)
+  {\textbf{異質組合}\\$\phi = +0.307$\\\textbf{準確率} $+0.0247$};
 \draw[ar] (f5) -- (bb); \draw[ar] (bb) -- (fr); \draw[ar] (fr) -- (het);
 \node[below=3mm of bb, font=\small\itshape, xshift=10mm]
   {成員錯誤相關係數 $\phi$ 愈低 $\longrightarrow$ 平均愈有價值};
 \end{tikzpicture}
-\caption{軟投票是一個連續的光譜，不是一個技巧。}
+\caption{本文量到的兩個點（右二），以及尚未量測的兩個（左二，灰）。灰色兩格的
+$\phi$ 需要保留每一折、每個 backbone 的個別預測才能計算，本文未做。}
 \label{fig:vote}
 \end{figure}
 
@@ -495,15 +524,17 @@ Qwen3-8B 零樣本單獨 & 0.3914 & 0.7700 & $-0.0352\ [-0.0614, -0.0105]$ \\
 它們與標註者的一致度（0.701）」——它們共享同一個表面具體性代換，所以一起錯。}
 \end{table}
 
-\begin{tcolorbox}[colback=blue!5, colframe=blue!55, title=這條線把競賽系統與診斷接起來]
-五折軟投票之所以有效，是因為\textbf{折與折之間的錯誤不完全相同}；它的效果有上限，
-是因為\textbf{同一個模型的偏誤在每一折都一樣}。本文的診斷指出那個共享偏誤\textbf{
-具體是什麼}（以表面具體性代換官方判準），因此也就指出了\textbf{該找什麼樣的成員}
-——不是更大的模型，而是\textbf{偏誤強度不同}的模型。
+\begin{tcolorbox}[colback=gray!8, colframe=gray!55, title=能主張的與不能主張的]
+\textbf{能主張的}：本文的兩個集成結果——前沿模型投票無增益、異質組合有增益——由成員
+錯誤相關係數解釋，而該係數的差異（$+0.498$ 對 $+0.307$）又由本文的診斷解釋：四個
+前沿模型共享同一個表面具體性代換，所以一起錯。這對「該找什麼樣的成員」給出一個具體
+的建議——\textbf{不是更大的模型，而是偏誤強度不同的模型}。
 
 \medskip
-\textbf{這使原本的競賽架構從一個工程技巧，變成一個有理論依據的設計原則：}
-成員的選擇應以錯誤相關係數為準，而該係數可由本文的判準分析事先預測。
+\textbf{不能主張的}：本文\textbf{沒有}量測五折之間或三種 backbone 之間的錯誤相關，
+因此不能宣稱已經把競賽系統的軟投票與上述結果統一成一個連續的解釋。「平均在成員錯得
+不一樣時才有價值」也是集成學習的既有結論，不是本文的發現；本文的貢獻只在於
+\textbf{指出這個資料集上共享偏誤的具體內容}，使該係數變得可以事先預測。
 \end{tcolorbox}
 
 % ===========================================================================
@@ -519,7 +550,8 @@ Qwen3-8B 零樣本單獨 & 0.3914 & 0.7700 & $-0.0352\ [-0.0614, -0.0105]$ \\
   \item \fn{Misleading} 全資料集僅 5 筆，任何關於該類別的結論都受此限制。
   \item 模型理由的自動編碼由本文作者撰寫並由同一作者人工驗證；應由未參與的標註者
         重做。
-  \item 錯誤相關與增益的關係目前只有兩個可用的點，尚不足以稱為曲線。
+  \item 錯誤相關與增益的關係目前只有兩個可用的點，尚不足以稱為曲線；五折之間與
+        三種 backbone 之間的錯誤相關未量測，需保留每個成員的個別預測才能補上。
   \item 所有結果限於繁體中文 ESG 報告書與此單一資料集。
 \end{itemize}
 
