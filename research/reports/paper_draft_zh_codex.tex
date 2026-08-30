@@ -34,10 +34,10 @@
 \setlist{nosep,leftmargin=2em}
 
 \newcommand{\fn}[1]{\texttt{#1}}
-\newcommand{\src}[1]{\textit{數值來源：\fn{research/output/#1}}}
+\newcommand{\src}[1]{\textit{數值來源：\texttt{\detokenize{research/output/#1}}}}
 
-\title{\textbf{承諾不只是標籤：繁體中文 ESG 報告的子句層級跨度抽取}}
-\author{TEAM\_10671}
+\title{\textbf{以子句決定邊界、以段落提供脈絡：繁體中文 ESG 承諾與佐證跨度抽取}}
+\author{匿名審稿版本}
 \date{}
 
 \begin{document}
@@ -47,14 +47,14 @@
 \begin{abstract}
 VeriPromiseESG4K 將企業永續報告中的承諾驗證建成四個分類欄位，另為每個正例標出
 承諾與佐證的文字跨度（span）；然而共享任務只評分類，這兩個覆蓋所有正例的欄位尚未
-形成評測任務。本文問一個與競賽排名無關的問題：\textbf{繁體中文 ESG 段落中的承諾與
+形成評測任務。本文問一個尚未被正式評測的問題：\textbf{繁體中文 ESG 段落中的承諾與
 佐證，應以句子還是子句為抽取單元？}資料分析顯示，僅 24\% 的標註邊界落在句界，加入
 逗號與頓號後，子句邊界對齊率為 71\%；相應的可達字元 F1 上限由 0.5414 提高至 0.9748。
-我們以同一個中文 RoBERTa 編碼器、同一組五折切分與訓練設定，比較句子與子句單元。
+我們以同一個中文 RoBERTa 編碼器（encoder）、同一組五折切分與訓練設定，比較句子與子句單元。
 三個隨機種子的平均結果顯示，子句模型把承諾跨度的字元 F1 由 0.4857 提高至 0.5889，
 佐證跨度由 0.6356 提高至 0.6663；移除段落脈絡時，兩者分別下降 0.0590 與 0.0238，
 換用另一個中文編碼器則落在種子變異範圍內。這些結果支持一項具體結論：\textbf{此資料的
-有效歸納偏誤不是更大的生成模型，而是「以子句作決策、以整段作脈絡」的任務形式化。}
+有效歸納偏誤（inductive bias）是「以子句作決策、以整段作脈絡」的任務形式化。}
 我們同時指出字元 F1 會高估「整段照抄」等過度抽取策略，因此必須連同交集聯集比
 （intersection over union, IoU）與完全匹配（exact match）報告。
 
@@ -70,10 +70,10 @@ VeriPromiseESG4K 將企業永續報告中的承諾驗證建成四個分類欄位
 \fn{Yes}/\fn{No} 或 \fn{Clear}/\fn{Not Clear} 並不充分；系統還應指出判斷依據位於
 何處。可定位的文字證據能讓使用者查核錯誤，也能把分類器的輸出轉成可追溯的審閱介面。
 
-VeriPromiseESG4K 含 4,000 個段落，其中 2,000 個為測試資料。資料為四個分類欄位評分，
+VeriPromiseESG4K\cite{day2026} 含 4,000 個段落，其中 2,000 個為測試資料。資料為四個分類欄位評分，
 並另附 \fn{promise\_string} 與 \fn{evidence\_string}：前者摘錄承諾語句，後者摘錄佐證
 語句。訓練與驗證資料合計來自 49 份 ESG 報告；在具有相應正標籤的資料中，兩個跨度欄位
-皆有標註。共享任務的提交格式沒有這兩欄，因此排行榜無法回答「系統是否找對文字」這個
+皆有標註。共享任務的提交格式沒有這兩欄，因此既有評測無法回答「系統是否找對文字」這個
 問題。\src{official_test_scoring.md；step12_distribution_comparison.md；span_coverage.md}
 
 本文把這項未評測資源建成一個獨立研究問題：\textbf{應以什麼文字單元抽取承諾與佐證？}
@@ -87,15 +87,41 @@ VeriPromiseESG4K 含 4,000 個段落，其中 2,000 個為測試資料。資料�
   \item 定義 VeriPromiseESG4K 的承諾與佐證跨度評測，並以標註幾何證明句子是錯誤的
         化約單元，而子句只犧牲少量可達上限。
   \item 提出脈絡感知的子句標註器（context-aware clause tagger），以相同編碼器、
-        相同切分與相同超參數對照句子 baseline，並以三個隨機種子與消融實驗定位增益。
+        相同切分與相同超參數對照句子 baseline，並以三個隨機種子與消融實驗
+        （ablation）定位增益。
   \item 顯示單一字元 F1 不足以評估此任務：整段照抄可取得不低的分數，卻幾乎從不精確；
         因此提出字元 F1、IoU 與完全匹配並列的報告方式。
 \end{enumerate}
 
-本文不把競賽總分當成研究證據。該總分混合四個類別數不同的欄位，而且
-\fn{evidence\_quality} 的 \fn{Misleading} 在測試集只有 3 筆；這一類 F1 為 0 時，
-四類 macro-F1 由移除該類後的 0.6189 降至 0.4642。這個敏感度說明共享任務指標適合
-排名提交，不適合替本文的抽取問題定義證據。\src{subtask_difficulty.md}
+本文直接為跨度任務另定評量指標與控制比較，使研究問題、方法與證據都落在「定位哪一段
+文字」。
+
+\section{相關研究與研究定位}
+
+\paragraph{從 ML-ESG 到承諾驗證。}
+ML-ESG 系列依序研究多語 ESG 議題辨識、影響類型與影響期間\cite{chen2023issue,chen2023impact,chen2024duration}。
+其中影響期間的工作指出，主觀任務上的模型表現與標註一致度同時較弱，並主張應公開更多
+專家討論與判斷細節。ML-Promise\cite{seki2025} 隨後把企業承諾驗證形式化為承諾辨識、
+可行動佐證、承諾--佐證清晰度與驗證時間，涵蓋英、法、中、日、韓語。它也提供部分語言的
+跨度標註，並以生成模型與檢索增強生成（retrieval-augmented generation, RAG）產生抽取
+baseline；然而各語言釋出的文字與跨度欄位並不
+完整一致，且其抽取結果採 ROUGE-L，不能直接充當本文資料與指標下的對照。
+\src{mlpromise_inventory.md}
+
+\paragraph{VeriPromiseESG4K。}
+Day 等人\cite{day2026} 將同一形式化擴充為繁體中文的 4,000 段資料，所有正式標籤與
+\fn{promise\_string}、\fn{evidence\_string} 均由人工標註；發布論文以四個分類任務與
+LLM／RAG baseline 為主，未報告跨度評測。該論文特別說明以段落而非單句為資料單位，
+因為承諾與佐證可能分布於同段不同句；這直接支持本文「子句決策仍須保留段落脈絡」的設計。
+發布論文稱語料取自 50 家公司，但釋出資料規範化公司名稱後為 49 個唯一 ticker；本文報告
+可重現的釋出檔案統計，並把這項差異視為文件限制。\src{step12_distribution_comparison.md}
+
+\paragraph{特殊場次的研究形態。}
+NTCIR-18 AI CUP 特殊場次的 KAP OCR 強化\cite{hsu2025kap}、跨領域檢索集成
+\cite{chao2025ensemble}，以及翻譯式與多語檢索比較\cite{chiu2025translation}，都把競賽
+資料當成研究材料，另定符合問題本身的指標、baseline、消融或控制比較；其中翻譯式與多語
+檢索更同時設置近似上界、配對檢定、錯誤分析與執行成本。本文沿用這個形態：不提出新的
+預訓練模型，而是檢驗一個可反駁的任務形式化，並使用跨度專屬指標作答。
 
 \section{任務定義與資料}
 
@@ -153,7 +179,8 @@ VeriPromiseESG4K 含 4,000 個段落，其中 2,000 個為測試資料。資料�
 
 \subsection{脈絡感知子句標註器}
 
-本文使用 \fn{hfl/chinese-roberta-wwm-ext-large} 將整個段落編碼一次。斷詞器提供每個
+本文使用中文 RoBERTa\cite{devlin2019} 的 \fn{hfl/chinese-roberta-wwm-ext-large}
+將整個段落編碼一次。斷詞器（tokeniser）提供每個
 token 的字元位置；對屬於同一子句的 token 向量取平均，送入共享的二元分類頭，判斷該
 子句是否屬於目標跨度。所有判為正例的子句依原順序串接成輸出。因編碼發生在整段層級，
 每個子句的表示可以注意承諾與佐證在其他位置的內容。
@@ -252,12 +279,6 @@ tagger_ablation_evidence_string.md；llm_span_baseline.md}}
 7 次排除零，平均區間為 $[-0.0392,+0.0003]$。該設計的靈敏度未被證明，因此本文不把
 「跨度無助分類」當成結論，也不把跨度模型包裝成分類改進。\src{test3_seed_stability.md}
 
-\paragraph{模型自述理由的格式效應。}
-本專案另曾要求語言模型用一句話同時說明多項品質判準，再以同句共現推論模型採用的規則。
-把官方判準拆開逐題詢問後，回覆的標籤分布與未解析率也隨提示改變；共現率因而混合了判定
-與回答格式，不能當成內部機制的證據。這項否定結果不依賴跨度模型，但它規範了本文的錯誤
-分析：本文不從生成理由的詞頻推論模型「真正使用」哪條判準。\src{criterion_decomposition.md}
-
 \paragraph{評測含意。}
 字元 F1 適合給部分正確的跨度連續分數，卻會獎勵過度抽取；完全匹配直觀，卻把少一個
 標點與漏掉整個子句都計為零。IoU 位於兩者之間。未來共享任務若納入跨度，應三者並列，
@@ -268,13 +289,17 @@ tagger_ablation_evidence_string.md；llm_span_baseline.md}}
 第一，子句規則依中文標點定義；表格、條列與 OCR 錯誤可能使標點不可靠。第二，完全匹配
 仍偏低：承諾 14.1\%、佐證 12.3\%，故目前模型適合提供候選文字，不宜宣稱可取代人工
 摘錄。第三，句子 baseline 是必要但不充分的對照；本文尚未與同編碼器的 token-level BIO
-標註器比較，後者能表示任意邊界，可能縮小或逆轉子句優勢。第四，模型只在單一繁體中文
-資料集上驗證，沒有跨公司年份或跨語言外部測試。第五，標註跨度本身沒有獨立人工複核；
-邊界差異可能反映多個都合理的摘錄方式，而非模型錯誤。
+標註器比較，後者能表示任意邊界，可能縮小或逆轉子句優勢。第四，完整模型雖重跑三個種子，
+句子、脈絡與編碼器變體各只有一次訓練；目前的種子標準差是噪音尺度，不是配對顯著性
+檢定。第五，模型只在單一繁體中文資料集上驗證，沒有跨公司年份或跨語言外部測試。第六，
+原始跨度以分隔符號串接多段文字，清理後仍有少數片段無法在原段落逐字定位；現行評測程式
+會忽略未對齊片段，故正式投稿前應修正對齊並重算全部跨度指標。第七，標註跨度本身沒有
+獨立人工複核；邊界差異可能反映多個都合理的摘錄方式，而非模型錯誤。
+\src{span_clean_redo.md；tagger_ablation_promise_string.md；tagger_ablation_evidence_string.md}
 
 \section{結論}
 
-VeriPromiseESG4K 的跨度標註揭示一個被分類排行榜遮住的研究問題：承諾與佐證的自然單元
+VeriPromiseESG4K 的跨度標註揭示一個未被分類評測涵蓋的研究問題：承諾與佐證的自然單元
 不是句子，而是保留整段脈絡的子句。標註幾何把可達字元 F1 上限由 0.5414 提高到 0.9748；
 控制實驗再把承諾與佐證的實際字元 F1 由 0.4857／0.6356 提高至 0.5889／0.6663。
 脈絡消融有明顯代價，編碼器替換則沒有超出種子噪音。因而，本文的核心結論不是模型規模，
@@ -297,19 +322,41 @@ Yohei Seki, Hakusen Shu, Anais Lhuissier, Hanwool Lee, Juyeon Kang,
 Min-Yuh Day, and Chung-Chi Chen. ML-Promise: A Multilingual Dataset for
 Corporate Promise Verification. EMNLP, pages 20353--20366, 2025.
 
+\bibitem{chen2023issue}
+Chung-Chi Chen, Yu-Min Tseng, Juyeon Kang, Anais Lhuissier, Min-Yuh Day,
+Teng-Tsai Tu, and Hsin-Hsi Chen. Multi-Lingual ESG Issue Identification.
+FinNLP, pages 111--115, 2023.
+
+\bibitem{chen2023impact}
+Chung-Chi Chen, Yu-Min Tseng, Juyeon Kang, Anais Lhuissier, Yohei Seki,
+Min-Yuh Day, Teng-Tsai Tu, and Hsin-Hsi Chen. Multi-Lingual ESG Impact Type
+Identification. FinNLP, 2023.
+
+\bibitem{chen2024duration}
+Chung-Chi Chen, Yu-Min Tseng, Juyeon Kang, Anais Lhuissier, Yohei Seki,
+Hanwool Lee, Min-Yuh Day, Teng-Tsai Tu, and Hsin-Hsi Chen. Multi-Lingual ESG
+Impact Duration Inference. FinNLP, 2024.
+
+\bibitem{hsu2025kap}
+Hsin-Ling Hsu and Ping-Sheng Lin. KAP: MLLM-assisted OCR Text Enhancement for
+Hybrid Retrieval in Chinese Non-Narrative Documents. Proceedings of FinTech in
+AI CUP Special Session, NTCIR-18, 2025.
+
+\bibitem{chao2025ensemble}
+Chi-Hsiang Chao, Hsin-Fu Chang, and Po-Yuan Teng. Ensemble-Based
+Multi-Specialty Retrieval: Integrating Diverse Similarity Metrics for Enhanced
+Question Answering. Proceedings of FinTech in AI CUP Special Session,
+NTCIR-18, 2025.
+
+\bibitem{chiu2025translation}
+Yi-Ting Chiu and Zong-Han Bai. Translation or Multilingual Retrieval?
+Evaluating Cross-Lingual Search Strategies for Traditional Chinese Financial
+Documents. Proceedings of FinTech in AI CUP Special Session, NTCIR-18, 2025.
+
 \bibitem{devlin2019}
 Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Kristina Toutanova. BERT:
 Pre-training of Deep Bidirectional Transformers for Language Understanding.
 NAACL-HLT, 2019.
-
-\bibitem{tjong2003}
-Erik F. Tjong Kim Sang and Fien De Meulder. Introduction to the CoNLL-2003
-Shared Task: Language-Independent Named Entity Recognition. CoNLL, 2003.
-
-\bibitem{turpin2023}
-Miles Turpin, Julian Michael, Ethan Perez, and Samuel R. Bowman. Language
-Models Don't Always Say What They Think: Unfaithful Explanations in
-Chain-of-Thought Prompting. NeurIPS, 2023.
 
 \end{thebibliography}
 
