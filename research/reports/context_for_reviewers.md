@@ -88,22 +88,33 @@ alpha): ① 0.977, ② 0.962, ③ 0.940, ④ 0.955.
 | **The current paper draft (Chinese)** | `research/reports/paper_draft_zh_2026-08-30.tex` |
 | A structural checker for that draft | `research/reports/check_tex.py` |
 
-**Absent, and this matters:**
+**The references, all in `research/refs/`:**
 
-- The **VeriPromiseESG4K dataset paper** itself (Day et al., 2026) is not in the
-  repo. What is known about it here is second-hand: it reports the alphas above,
-  it describes the annotation guideline as having been revised in weekly review
-  meetings and adjudicated by sustainability-domain experts, and it names the
-  failure mode "concrete-sounding words but lacked measurable outcomes" without
-  measuring it. Its retrieval-augmented baseline scores are quoted in the draft
-  (③ 0.3549 → 0.3599; ④ 0.3090 → 0.4227).
-- The **three NTCIR-18 special-session papers** are not in the repo either. The
-  table in section 1 above is the extent of what was recorded about them.
-- **ML-Promise is present** (Seki et al., EMNLP 2025, pages 20353–20366) as
-  transcribed tables and raw data, not as a PDF.
+| file | what it is | why you want it |
+|---|---|---|
+| `VeriPromiseESG4K.pdf` | Day et al., the dataset paper for this shared task (5 pp) | The alphas, the annotation process, the retrieval baseline this project quotes (③ 0.3549 → 0.3599, ④ 0.3090 → 0.4227), and the phrase "concrete-sounding words but lacked measurable outcomes" |
+| `2025.emnlp-main.1028.pdf` | Seki et al., ML-Promise, EMNLP 2025 pp. 20353–20366 (14 pp) | The multilingual predecessor dataset. Same four-field formalisation, five languages, 610 Chinese instances |
+| `2023.finnlp-1.11.pdf` | Chen et al., Multi-Lingual ESG Issue Identification (ML-ESG) | The shared-task lineage these organisers come from |
+| `2023.finnlp-2.6.pdf` | ML-ESG, FinNLP-2023 | same lineage |
+| `2024.finnlp-1.22.pdf` | ML-ESG, FinNLP/KDF/ECONLP 2024 (9 pp) | same lineage, most recent |
+| `01-AICUP-AICUP-HsuH.pdf` | KAP: MLLM-assisted OCR Text Enhancement (7 pp) | NTCIR-18 special session, **the format precedent** |
+| `02-AICUP-AICUP-ChaoC.pdf` | Ensemble-Based Multi-Specialty Retrieval (7 pp) | NTCIR-18 special session |
+| `03-AICUP-AICUP-ChiuY.pdf` | Translation or Multilingual Retrieval? (7 pp) | NTCIR-18 special session. **The closest template**: a controlled comparison proposing no new model, with baseline, approximate upper bound, paired t-test, error analysis and runtime |
+| `chuang25b.pdf` | Chuang et al., Learning to Route LLMs with Confidence Tokens (Self-REF), ICML 2025 | The method Appendix B reimplements |
+| `NeurIPS-2024-simpo-...pdf` | Meng et al., SimPO | Considered and rejected as a fix; see section 7 of the progress reports |
+| `TEAM_10671_competition_report_zh.pdf` | The authors' own competition report (15 pp, Chinese) | Where the system in section 4 came from, and the training details |
 
-A reviewer who needs to check a claim against the dataset paper or the NTCIR-18
-papers will have to obtain them separately.
+**One warning about that last file.** It is a competition report and it opens
+with a leaderboard placement. **The paper must not mention the ranking, the
+leaderboard, the competition's scoring weights, or that `evidence_quality`
+carries the largest weight in that formula.** This is a standing instruction
+from the author and it has been given more than once. Use the report for
+reproducible detail — hardware, hyperparameters, what was trained — and nothing
+else.
+
+Also absent: nothing of consequence. Anything cited in the current draft that is
+not in `research/refs/` is cited from general knowledge and should be checked
+before it goes into a submission.
 
 ---
 
