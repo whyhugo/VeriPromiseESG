@@ -7,9 +7,13 @@
 % ---------------------------------------------------------------------------
 \documentclass[11pt,a4paper]{ctexart}
 
-% Overleaf 請把編譯器設為 XeLaTeX（Menu -> Compiler -> XeLaTeX）。
-% 字體交給 ctex 自動挑選：明確指定 Noto Serif CJK TC 之類的名稱時，若該環境
-% 沒有安裝該字體，fontspec 會直接中斷編譯，交叉引用便永遠停在 ??。
+% Overleaf：Menu -> Compiler 必須設為 XeLaTeX。
+% 字體必須明確指定為繁體字集（TC）。若交給 ctex 自動挑選，它在 Overleaf 上會選到
+% 簡體字型，繁體字會變成缺字方框。
+\usepackage{xeCJK}
+\setCJKmainfont{Noto Serif CJK TC}
+\setCJKsansfont{Noto Sans CJK TC}
+\setCJKmonofont{Noto Sans Mono CJK TC}
 
 \usepackage{geometry}
 \geometry{margin=2.3cm}
@@ -23,7 +27,7 @@
 \hypersetup{colorlinks=true, linkcolor=black, urlcolor=blue, citecolor=black}
 \usepackage{tcolorbox}
 \usepackage{tikz}
-\usetikzlibrary{positioning, arrows.meta, fit, backgrounds}
+\usetikzlibrary{positioning}
 \usepackage{fancyhdr}
 
 \pagestyle{fancy}
@@ -186,31 +190,31 @@ VeriPromiseESG4K 含 4,000 個段落，取自 49 家台灣上市公司的 2024 �
 \begin{figure}[h]
 \centering
 \begin{tikzpicture}[
-  node distance=6mm,
   box/.style={draw, rounded corners=2pt, align=center, font=\small,
-              inner sep=4pt, minimum height=8mm},
-  kill/.style={box, fill=gray!12},
-  keep/.style={box, fill=green!14, draw=green!50!black},
-  q/.style={box, fill=blue!10, draw=blue!50},
-  ar/.style={-{Stealth[length=2mm]}, gray!70}]
+              inner sep=3pt, text width=30mm},
+  ar/.style={->, gray}]
 
-\node[q] (q) {\textbf{為什麼子任務\textcircled{3}這麼難？}};
-\node[kill, below=8mm of q, xshift=-46mm] (a) {解釋一：標籤有雜訊};
-\node[kill, right=5mm of a] (b) {解釋二：模型能力不足};
-\node[kill, right=5mm of b] (c) {解釋三：任務形式化錯誤};
-\node[keep, right=5mm of c] (d) {\textbf{解釋四：判準\\沒有隨資料釋出}};
+\node[box, fill=blue!10, draw=blue!50, text width=52mm] (q) at (5.6,3.4)
+  {\textbf{為什麼子任務\textcircled{3}這麼難？}};
 
-\node[box, below=7mm of a, fill=gray!5, text width=27mm] (a2)
-  {排除\\標註者 $\alpha=0.940$};
-\node[box, below=7mm of b, fill=gray!5, text width=27mm] (b2)
-  {排除\\四個前沿模型\\ 0.354--0.449，\\低於我們的 0.466};
-\node[box, below=7mm of c, fill=gray!5, text width=27mm] (c2)
-  {排除\\六種輸入條件差異\\皆 $<0.005$，\\而對照組 $-0.0185$};
-\node[box, below=7mm of d, fill=green!8, draw=green!50!black, text width=29mm] (d2)
-  {\textbf{成立}\\官方判準重現正解\\僅 0.592／0.675，\\低於官方未提的 0.690};
+\node[box, fill=gray!12] (a) at (0,1.9) {解釋一\\標籤有雜訊};
+\node[box, fill=gray!12] (b) at (3.7,1.9) {解釋二\\模型能力不足};
+\node[box, fill=gray!12] (c) at (7.4,1.9) {解釋三\\任務形式化錯誤};
+\node[box, fill=green!14, draw=green!50!black] (d) at (11.1,1.9)
+  {\textbf{解釋四}\\\textbf{判準沒有隨資料釋出}};
 
-\foreach \x in {a,b,c,d} \draw[ar] (q) -- (\x);
-\foreach \x/\y in {a/a2,b/b2,c/c2,d/d2} \draw[ar] (\x) -- (\y);
+\node[box, fill=gray!4] (a2) at (0,0) {\textbf{排除}\\標註者一致度\\$\alpha=0.940$};
+\node[box, fill=gray!4] (b2) at (3.7,0)
+  {\textbf{排除}\\四個前沿模型\\0.354--0.449\\低於本文的 0.466};
+\node[box, fill=gray!4] (c2) at (7.4,0)
+  {\textbf{排除}\\六種輸入差異\\皆小於 0.005\\而對照組 $-0.0185$};
+\node[box, fill=green!8, draw=green!50!black] (d2) at (11.1,0)
+  {\textbf{成立}\\官方判準重現正解\\僅 0.592／0.675\\低於官方未提的 0.690};
+
+\draw[ar] (q) -- (a); \draw[ar] (q) -- (b);
+\draw[ar] (q) -- (c); \draw[ar] (q) -- (d);
+\draw[ar] (a) -- (a2); \draw[ar] (b) -- (b2);
+\draw[ar] (c) -- (c2); \draw[ar] (d) -- (d2);
 \end{tikzpicture}
 \caption{論證結構。三種替代解釋各以一項獨立量測排除，第四種被四項證據支持。}
 \label{fig:arg}
@@ -510,20 +514,20 @@ Qwen3-8B 零樣本單獨 & 0.3914 & 0.7700 & $-0.0352\ [-0.0614, -0.0105]$ \\
 \begin{figure}[h]
 \centering
 \begin{tikzpicture}[
-  b/.style={draw, rounded corners=2pt, align=center, font=\small, inner sep=4pt,
-            text width=33mm, minimum height=13mm},
-  ar/.style={-{Stealth[length=2mm]}, gray!70}]
-\node[b, fill=gray!6, draw=gray!45] (f5)
-  {五折之間\\{\small$\phi$ \textit{未量測}}};
-\node[b, fill=gray!6, draw=gray!45, right=7mm of f5] (bb)
-  {三種 backbone 之間\\{\small$\phi$ \textit{未量測}}\\增益 $\approx +0.03$};
-\node[b, fill=red!8, right=7mm of bb] (fr)
+  b/.style={draw, rounded corners=2pt, align=center, font=\small,
+            inner sep=3pt, text width=31mm},
+  ar/.style={->, gray}]
+\node[b, fill=gray!6, draw=gray!45] (f5) at (0,0)
+  {五折之間\\\textit{$\phi$ 未量測}};
+\node[b, fill=gray!6, draw=gray!45] (bb) at (3.8,0)
+  {三種編碼器之間\\\textit{$\phi$ 未量測}\\增益約 $+0.03$};
+\node[b, fill=red!8] (fr) at (7.6,0)
   {\textbf{四個前沿模型}\\$\phi = +0.498$\\\textbf{無增益}};
-\node[b, fill=green!14, right=7mm of fr] (het)
-  {\textbf{異質組合}\\$\phi = +0.307$\\\textbf{準確率} $+0.0247$};
+\node[b, fill=green!14] (het) at (11.4,0)
+  {\textbf{異質組合}\\$\phi = +0.307$\\準確率 $+0.0247$};
 \draw[ar] (f5) -- (bb); \draw[ar] (bb) -- (fr); \draw[ar] (fr) -- (het);
-\node[below=3mm of bb, font=\small\itshape, xshift=10mm]
-  {成員錯誤相關係數 $\phi$ 愈低 $\longrightarrow$ 平均愈有價值};
+\node[font=\small\itshape] at (5.7,-1.5)
+  {成員錯誤相關係數 $\phi$ 愈低，平均愈有價值};
 \end{tikzpicture}
 \caption{本文量到的兩個點（右二），以及尚未量測的兩個（左二，灰）。灰色兩格的
 $\phi$ 需要保留每一折、每個 backbone 的個別預測才能計算，本文未做。}
